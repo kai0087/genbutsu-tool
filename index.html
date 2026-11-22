@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>現物表示マス編集（スマホ最適UI）</title>
 <style>
 :root {
@@ -11,71 +11,97 @@
   background: #222;
   font-size: 14px;
   --accent: #0066cc;
-  --danger: #d93025;
+  --danger: #ff8a80;
 }
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
 html, body {
   margin: 0;
   padding: 0;
   width: 100%;
+  min-height: 100dvh;
+  background: #242426;
+  color: #fff;
+}
+body.phone-app {
   height: 100dvh;
-  overflow: hidden; /* 上下移動・スクロールを完全に防止 */
   display: flex;
   flex-direction: column;
-  background: #2b2b2b;
+  overflow: hidden;
 }
 
-/* コンパクトな上部ヘッダー */
+/* 上部ヘッダー */
 header {
-  height: 44px;
-  background: #1a1a1a;
+  min-height: 44px;
+  background: #18181b;
   color: #fff;
-  padding: 0 12px;
+  padding: 6px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-shrink: 0;
+  gap: 8px;
   border-bottom: 1px solid #333;
+  flex-shrink: 0;
+  z-index: 50;
 }
-header strong { font-size: 14px; letter-spacing: 0.02em; }
-.header-actions { display: flex; gap: 6px; }
-.header-actions button {
-  background: #333;
+header strong { font-size: 14px; white-space: nowrap; }
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+button, select, input { font: inherit; }
+button {
+  padding: 6px 10px;
+  border: 1px solid #666;
+  background: #2e2e32;
   color: #fff;
-  border: 1px solid #555;
   border-radius: 6px;
-  padding: 5px 10px;
+  cursor: pointer;
   font-size: 12px;
   font-weight: 600;
 }
-.header-actions button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
+button:active { background: #444; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.danger { background: rgba(217, 48, 37, 0.25); border-color: rgba(255, 138, 128, 0.4); color: var(--danger); }
+select, input[type=number], input[type=text] {
+  padding: 8px 10px;
+  border: 1px solid #888;
+  border-radius: 6px;
+  max-width: 100%;
+  background: #fff;
+  color: #111;
 }
 
-/* ステージエリア（画面中央に固定表示） */
+/* ステージ領域（通常は中央フィット・ピンチ拡大時はスクロール可能） */
 .stage-wrap {
   flex: 1;
   position: relative;
+  overflow: auto;
+  padding: 24px 14px;
+  background: #3a3a3e;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-  padding: 12px;
-  touch-action: none;
+  -webkit-overflow-scrolling: touch;
 }
 .stage {
   position: relative;
+  margin: auto;
   background: #fff;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  color: #111;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   transform-origin: center center;
   flex-shrink: 0;
 }
-.paper-badge {
+.paper-label {
   position: absolute;
   top: -20px;
   left: 0;
-  color: #bbb;
+  color: #ccc;
   font-size: 11px;
   pointer-events: none;
 }
@@ -88,61 +114,52 @@ header strong { font-size: 14px; letter-spacing: 0.02em; }
   border-bottom: 1px solid #111;
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: flex-start;
+  gap: 5px;
   padding: 1.5mm 2.5mm;
+  font-size: 12px;
+  font-weight: 700;
   background: #fff;
   z-index: 5;
+  flex-wrap: nowrap;
   white-space: nowrap;
   overflow: hidden;
 }
-.sheet-header .sheet-title input {
-  width: 42mm;
-  font-weight: 800;
-  font-size: 13px;
-}
-.sheet-header label {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 10px;
-  font-weight: 700;
-  flex: 0 0 auto;
-}
-.sheet-header input {
-  width: 26mm;
-  min-width: 0;
-  border: 1px solid #888;
-  padding: 2px;
-  font-size: 11px;
-  font-weight: 600;
-  background: transparent;
-}
+.sheet-header .sheet-title { font-size: 14px; font-weight: 800; white-space: nowrap; }
+.sheet-header .sheet-title input { width: 43mm; font-weight: 800; font-size: 14px; }
+.sheet-header label { display: flex; align-items: center; gap: 3px; white-space: nowrap; flex: 0 0 auto; font-size: 11px; font-weight: 700; }
+.sheet-header input { width: 29mm; min-width: 0; border: 1px solid #777; padding: 2px; font-size: 11px; font-weight: 600; background: transparent; }
 
 #paper { position: absolute; inset: 0; overflow: hidden; }
 .grid-bg {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: linear-gradient(to right, #e0e0e0 1px, transparent 1px),
-                    linear-gradient(to bottom, #e0e0e0 1px, transparent 1px);
+  background-image: linear-gradient(to right, #ddd 1px, transparent 1px),
+                    linear-gradient(to bottom, #ddd 1px, transparent 1px);
   background-size: 10px 10px;
 }
 
-/* マス（セル）のスタイル */
+/* マス（セル）とレイヤー順 */
 .cell {
   position: absolute;
   border: 1.5px solid #222;
   background: #fff;
+  min-width: 5px;
+  min-height: 5px;
   user-select: none;
   touch-action: none;
 }
-.cell.parent { background: #fff; z-index: 1; }
-.cell.child { z-index: 20; border-color: #444; }
 .cell.selected {
   outline: 2.5px solid var(--accent);
   outline-offset: 1px;
-  z-index: 30 !important;
 }
+.cell.parent { background: #fff; z-index: 1 !important; }
+.cell.child { z-index: 20 !important; border-style: solid; }
+.cell.image-object { z-index: 30 !important; }
+.cell.text-image { z-index: 40 !important; }
+.cell.selected { z-index: 45 !important; }
+
 .cell-content {
   width: 100%;
   height: 100%;
@@ -158,7 +175,7 @@ header strong { font-size: 14px; letter-spacing: 0.02em; }
 }
 .cell-content img { width: 100%; height: 100%; object-fit: contain; }
 
-/* スマホ指操作用の大きめ四隅ハンドル */
+/* スマホ指操作用の四隅（4点）大きめ丸型ハンドル */
 .cell .handle {
   position: absolute;
   width: 18px;
@@ -166,192 +183,156 @@ header strong { font-size: 14px; letter-spacing: 0.02em; }
   background: var(--accent);
   border: 2px solid #fff;
   border-radius: 50%;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-  z-index: 40;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  z-index: 50;
+  touch-action: none;
 }
 .handle.nw { left: -9px; top: -9px; }
 .handle.ne { right: -9px; top: -9px; }
 .handle.sw { left: -9px; bottom: -9px; }
 .handle.se { right: -9px; bottom: -9px; }
 
-/* 下部固定メインアクションバー */
-.bottom-bar {
-  height: 58px;
-  background: #1a1a1a;
-  border-top: 1px solid #333;
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding: 0 6px;
-  flex-shrink: 0;
-  z-index: 100;
-}
-.bottom-bar button {
-  flex: 1;
-  max-width: 110px;
-  height: 42px;
-  margin: 0 3px;
-  background: #2c2c2c;
-  color: #fff;
-  border: 1px solid #444;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-}
-.bottom-bar button:active { background: #444; transform: scale(0.97); }
-.bottom-bar button.add-btn { background: var(--accent); border-color: var(--accent); }
-
-/* 選択マスに応じたコンテキスト・ポップアップメニュー */
+/* 選択マスの種類に応じたコンテキスト・ポップアップ */
 .context-popup {
   position: fixed;
-  z-index: 500;
-  background: rgba(25, 25, 28, 0.96);
+  z-index: 400;
+  background: rgba(24, 24, 28, 0.96);
   backdrop-filter: blur(8px);
   border: 1px solid #555;
   border-radius: 12px;
   padding: 6px;
   display: flex;
-  gap: 6px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
-  transition: opacity 0.12s ease, transform 0.12s ease;
-}
-.context-popup[hidden] { display: none; }
-.context-popup button {
-  background: #38383d;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 11px;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  max-width: calc(100vw - 16px);
+  overflow-x: auto;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  scrollbar-width: none;
 }
-.context-popup button:active { background: #505057; }
-.context-popup button.primary { background: var(--accent); }
-.context-popup button.danger { background: rgba(217, 48, 37, 0.25); color: #ff8a80; }
+.context-popup::-webkit-scrollbar { display: none; }
+.context-popup[hidden] { display: none; }
 .context-popup .badge {
   font-size: 10px;
-  color: #aaa;
-  padding: 0 4px;
-  display: flex;
-  align-items: center;
+  color: #93c5fd;
+  font-weight: 700;
+  padding: 0 6px 0 2px;
   border-right: 1px solid #444;
-  margin-right: 2px;
+  white-space: nowrap;
+}
+.context-popup button {
+  padding: 7px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-/* ボトムシート（詳細編集・設定・ダイアログ共通） */
+/* 下部固定アクションバー */
+.bottom-bar {
+  height: 54px;
+  background: #18181b;
+  border-top: 1px solid #333;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 6px;
+  gap: 5px;
+  flex-shrink: 0;
+  z-index: 60;
+}
+.bottom-bar button {
+  flex: 1;
+  height: 40px;
+  font-size: 12px;
+  padding: 4px 6px;
+  white-space: nowrap;
+}
+
+/* ボトムシート＆ダイアログ */
 .sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.55);
+  background: rgba(0, 0, 0, 0.55);
   z-index: 1000;
   display: flex;
   align-items: flex-end;
   justify-content: center;
+}
+.sheet-backdrop.center-dialog {
+  align-items: center;
+  padding: 15px;
 }
 .sheet-backdrop[hidden] { display: none; }
 .bottom-sheet {
   width: 100%;
   max-width: 500px;
   background: #fff;
+  color: #111;
   border-radius: 16px 16px 0 0;
   padding: 16px 18px 24px;
   max-height: 82dvh;
   overflow-y: auto;
-  box-shadow: 0 -4px 24px rgba(0,0,0,0.3);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.35);
 }
-.sheet-header-bar {
+.center-dialog .bottom-sheet {
+  border-radius: 14px;
+  max-width: 360px;
+  padding: 16px;
+}
+.sheet-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #eee;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
 }
-.sheet-header-bar h3 { margin: 0; font-size: 16px; }
+.sheet-head h3 { margin: 0; font-size: 15px; color: #111; }
 .sheet-close {
-  background: #eee;
+  background: #e5e7eb;
+  color: #111;
   border: none;
-  border-radius: 20px;
-  padding: 6px 14px;
-  font-weight: 700;
-  font-size: 13px;
-}
-.field { margin-bottom: 12px; }
-.field label { display: block; font-size: 12px; font-weight: 700; color: #444; margin-bottom: 5px; }
-.field input[type=text], .field input[type=number], .field select {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  font-size: 15px;
-  background: #fafafa;
-}
-.field input[type=color] {
-  width: 100%;
-  height: 40px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 2px;
-  background: #fff;
-}
-.row { display: flex; gap: 10px; }
-.row > * { flex: 1; }
-.btn-full {
-  width: 100%;
-  padding: 12px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 700;
-  margin-top: 6px;
-}
-.btn-group-row { display: flex; gap: 8px; }
-.btn-group-row button {
-  flex: 1;
-  padding: 10px;
-  background: #f0f0f0;
-  border: 1px solid #ccc;
-  border-radius: 8px;
+  border-radius: 16px;
+  padding: 5px 12px;
+  font-size: 12px;
   font-weight: 700;
 }
+.field { margin-bottom: 11px; }
+.field label { display: block; font-size: 12px; font-weight: 700; color: #333; margin-bottom: 4px; }
+.field input[type=text], .field input[type=number], .field select { width: 100%; }
+.field input[type=color] { width: 100%; height: 38px; border: 1px solid #ccc; border-radius: 6px; padding: 2px; background: #fff; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; min-width: 0; }
+.sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.sheet-actions button { color: #111; background: #f3f4f6; border-color: #bbb; }
+.sheet-actions button.primary { color: #fff; background: var(--accent); border-color: var(--accent); }
+small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; margin-top: 4px; }
 
-/* 印刷用スタイル */
+/* 印刷時 */
 @media print {
-  html, body { height: auto; overflow: visible; background: #fff; display: block; }
-  header, .bottom-bar, .context-popup, .sheet-backdrop, .paper-badge, .grid-bg, .handle { display: none !important; }
-  .stage-wrap { padding: 0; display: block; }
-  .stage { box-shadow: none; transform: none !important; margin: 0; }
-  .cell.selected { outline: none; }
+  html, body { height: auto !important; overflow: visible !important; background: #fff !important; color: #111 !important; display: block !important; }
+  header, .bottom-bar, .context-popup, .sheet-backdrop, .paper-label, .grid-bg, .handle { display: none !important; }
+  .stage-wrap { padding: 0 !important; overflow: visible !important; background: #fff !important; display: block !important; }
+  .stage { margin: 0 !important; box-shadow: none !important; transform: none !important; }
+  .cell.selected { outline: none !important; }
 }
 </style>
 </head>
-<body>
+<body class="phone-app">
 
 <header>
   <strong>現物表示マス編集</strong>
-  <div class="header-actions">
-    <button id="btnSettings">用紙・設定</button>
-    <button id="btnPrint" class="primary">印刷</button>
+  <div class="header-tools">
+    <button type="button" id="openSettings">用紙・設定</button>
+    <button type="button" class="primary" id="print">印刷</button>
   </div>
 </header>
 
 <section class="stage-wrap" id="stageWrap">
   <div class="stage" id="stage">
-    <div class="paper-badge" id="paperLabel">A4・横</div>
+    <div class="paper-label" id="paperLabel">A4・横</div>
     <div id="paper">
       <div class="sheet-header" id="sheetHeader">
-        <label class="sheet-title"><input id="sheetTitle" type="text" value="車型別部品表示票"></label>
+        <label class="sheet-title"><input id="sheetTitle" type="text" value="車型別部品表示票" aria-label="表示票タイトル"></label>
         <label>工程名 <input id="processName" type="text" placeholder="工程名"></label>
         <label>E/G型式 <input id="engineType" type="text" placeholder="E/G型式"></label>
         <label>T/T <input id="ttValue" type="text" placeholder="T/T"></label>
@@ -362,642 +343,669 @@ header strong { font-size: 14px; letter-spacing: 0.02em; }
   </div>
 </section>
 
-<!-- 選択マスの種類に応じて切り替わるコンテキスト・ポップアップ -->
+<!-- 選択マスの種類に応じて切り替わるフローティング・ポップアップ -->
 <div id="contextPopup" class="context-popup" hidden></div>
 
 <!-- 下部固定ツールバー -->
 <nav class="bottom-bar">
-  <button id="btnAddParent" class="add-btn">＋ 親マス</button>
-  <button id="btnAddImage">＋ 画像</button>
-  <button id="btnAddTextImg">＋ 文字画像</button>
+  <button type="button" class="primary" id="addParent">＋ 親マス</button>
+  <button type="button" id="addImage">＋ 画像</button>
+  <button type="button" id="addTextImage">＋ 文字画像</button>
   <input id="imageFile" type="file" accept="image/*" hidden>
 </nav>
 
-<!-- 1. 親マス構成選択シート -->
-<div id="parentFormatSheet" class="sheet-backdrop" hidden>
+<!-- 親マス構成選択 -->
+<div id="parentFormatDialog" class="sheet-backdrop center-dialog" hidden>
   <div class="bottom-sheet">
-    <div class="sheet-header-bar">
-      <h3>親マスの部品構成を選択</h3>
-      <button class="sheet-close" data-close="parentFormatSheet">閉じる</button>
+    <div class="sheet-head">
+      <h3>親マスの部品構成</h3>
+      <button type="button" class="sheet-close" data-close="parentFormatDialog">閉じる</button>
     </div>
     <div class="field">
-      <label>構成テンプレート</label>
+      <label for="parentFormat">フォーマット</label>
       <select id="parentFormat">
-        <option value="single">部品単品（子マス2枠）</option>
-        <option value="assembly">部品＋ボルト・ナット（構成品4枠）</option>
+        <option value="single">部品単品</option>
+        <option value="assembly">部品＋ボルト・ナット（構成品）</option>
       </select>
     </div>
-    <button id="confirmParent" class="btn-full">この構成で親マスを追加</button>
+    <div class="sheet-actions">
+      <button type="button" id="cancelParent">キャンセル</button>
+      <button type="button" class="primary" id="confirmParent">追加</button>
+    </div>
   </div>
 </div>
 
-<!-- 2. 選択マスの詳細編集ボトムシート -->
-<div id="editCellSheet" class="sheet-backdrop" hidden>
+<!-- 文字画像作成・編集 -->
+<div id="textImageDialog" class="sheet-backdrop center-dialog" hidden>
   <div class="bottom-sheet">
-    <div class="sheet-header-bar">
-      <h3 id="editSheetTitle">マスの編集</h3>
-      <button class="sheet-close" data-close="editCellSheet">完了</button>
+    <div class="sheet-head">
+      <h3 id="textImageTitle">文字画像の作成</h3>
+      <button type="button" class="sheet-close" data-close="textImageDialog">閉じる</button>
     </div>
-    <div class="field" id="fieldTextWrap">
-      <label>表示文字</label>
-      <input id="cellText" type="text" placeholder="文字を入力">
-    </div>
+    <div class="field"><label for="textImageValue">表示する文字</label><input id="textImageValue" type="text"></div>
     <div class="row">
-      <div class="field"><label>幅 (mm)</label><input id="w" type="number" min="5"></div>
-      <div class="field"><label>高さ (mm)</label><input id="h" type="number" min="5"></div>
+      <div class="field"><label for="textImageColor">文字色</label><input id="textImageColor" type="color" value="#111111"></div>
+      <div class="field"><label for="textImageSize">文字サイズ（px）</label><input id="textImageSize" type="number" min="8" max="120" value="22"></div>
     </div>
-    <div class="row" id="fieldColorWrap">
-      <div class="field"><label>背景色</label><input id="bg" type="color" value="#ffffff"></div>
-      <div class="field"><label>文字色</label><input id="textColor" type="color" value="#111111"></div>
+    <div class="field"><label><input id="textImageClearBg" type="checkbox" checked> 背景色をクリア（透明）</label></div>
+    <div class="field" id="textImageBgField" hidden><label for="textImageBg">背景色</label><input id="textImageBg" type="color" value="#ffffff"></div>
+    <div class="sheet-actions">
+      <button type="button" id="cancelTextImage">キャンセル</button>
+      <button type="button" class="primary" id="confirmTextImage">挿入</button>
     </div>
-    <div class="field" id="fieldFontSizeWrap">
-      <label>文字サイズ (px)</label>
-      <input id="fontSize" type="number" min="8" max="120" value="22">
+  </div>
+</div>
+
+<!-- 選択マスの詳細編集ボトムシート -->
+<div id="editSheet" class="sheet-backdrop" hidden>
+  <div class="bottom-sheet">
+    <div class="sheet-head">
+      <h3 id="editSheetTitle">選択中のマスを編集</h3>
+      <button type="button" class="sheet-close" data-close="editSheet">完了</button>
+    </div>
+    <div class="field"><label for="kindLabel">種類</label><input id="kindLabel" type="text" readonly></div>
+    <div class="row">
+      <div class="field"><label for="w">幅 (mm)</label><input id="w" type="number" min="5"></div>
+      <div class="field"><label for="h">高さ (mm)</label><input id="h" type="number" min="5"></div>
+    </div>
+    <div class="field" id="textFieldWrap"><label for="cellText">表示文字</label><input id="cellText" type="text" value=""></div>
+    <div class="row">
+      <div class="field"><label for="bg">背景色</label><input id="bg" type="color" value="#ffffff"></div>
+      <div class="field"><label for="textColor">文字色</label><input id="textColor" type="color" value="#111111"></div>
     </div>
     <div class="field" id="imageRotateControls" hidden>
       <label>画像の回転</label>
-      <div class="btn-group-row">
-        <button type="button" id="rotateLeft">↺ 左へ90°</button>
-        <button type="button" id="rotateRight">↻ 右へ90°</button>
+      <div class="row">
+        <button type="button" id="rotateLeft" style="color:#111;background:#f3f4f6;border-color:#bbb;">左へ90°</button>
+        <button type="button" id="rotateRight" style="color:#111;background:#f3f4f6;border-color:#bbb;">右へ90°</button>
       </div>
     </div>
-    <div class="field">
-      <label><input id="lockRatio" type="checkbox"> リサイズ時に縦横比を固定</label>
-    </div>
+    <div class="field" id="fontSizeFieldWrap"><label for="fontSize">文字サイズ（px）</label><input id="fontSize" type="number" min="8" max="120" value="22"></div>
+    <div class="field"><label><input id="lockRatio" type="checkbox"> 縦横比を固定（写真用）</label></div>
+    <small class="help">幅・高さはmm相当の編集単位です。入力すると即時反映します。</small>
   </div>
 </div>
 
-<!-- 3. 文字画像作成シート -->
-<div id="textImageSheet" class="sheet-backdrop" hidden>
-  <div class="bottom-sheet">
-    <div class="sheet-header-bar">
-      <h3>文字画像の作成</h3>
-      <button class="sheet-close" data-close="textImageSheet">閉じる</button>
-    </div>
-    <div class="field"><label>表示する文字（□や○も図形化）</label><input id="textImageValue" type="text" placeholder="例：A1 □○"></div>
-    <div class="row">
-      <div class="field"><label>文字色</label><input id="textImageColor" type="color" value="#111111"></div>
-      <div class="field"><label>文字サイズ (px)</label><input id="textImageSize" type="number" min="8" max="120" value="28"></div>
-    </div>
-    <div class="field"><label><input id="textImageClearBg" type="checkbox" checked> 背景を透明にする</label></div>
-    <div class="field" id="textImageBgField" hidden><label>背景色</label><input id="textImageBg" type="color" value="#ffffff"></div>
-    <button id="confirmTextImage" class="btn-full">文字画像を挿入</button>
-  </div>
-</div>
-
-<!-- 4. 用紙・グリッド設定シート -->
+<!-- 用紙・グリッド設定ボトムシート -->
 <div id="settingsSheet" class="sheet-backdrop" hidden>
   <div class="bottom-sheet">
-    <div class="sheet-header-bar">
+    <div class="sheet-head">
       <h3>用紙・グリッド設定</h3>
-      <button class="sheet-close" data-close="settingsSheet">閉じる</button>
+      <button type="button" class="sheet-close" data-close="settingsSheet">閉じる</button>
     </div>
     <div class="row">
       <div class="field">
-        <label>用紙サイズ</label>
+        <label for="paperSize">用紙</label>
         <select id="paperSize"><option value="A4">A4</option><option value="B5">B5</option></select>
       </div>
       <div class="field">
-        <label>向き</label>
+        <label for="orientation">向き</label>
         <select id="orientation"><option value="landscape" selected>横</option><option value="portrait">縦</option></select>
       </div>
     </div>
-    <div class="field"><label><input id="gridToggle" type="checkbox" checked> 5mm単位のグリッド吸着</label></div>
-    <div class="field"><label><input id="gridView" type="checkbox"> 補助線を表示する</label></div>
-    <div class="field"><label><input id="fitPrint" type="checkbox" checked> 印刷時に1枚に収める</label></div>
+    <div class="field"><label><input id="gridToggle" type="checkbox" checked> グリッド吸着（5mm）</label></div>
+    <div class="field"><label><input id="gridView" type="checkbox"> 補助線表示</label></div>
+    <div class="field"><label><input id="fitPrint" type="checkbox" checked> 1枚に収める</label></div>
+    <div class="field">
+      <label>画面表示モード</label>
+      <div class="row">
+        <button type="button" id="phonePortrait" style="color:#111;background:#e5e7eb;border-color:#bbb;">スマホ縦</button>
+        <button type="button" id="phoneLandscape" style="color:#111;background:#e5e7eb;border-color:#bbb;">スマホ横</button>
+        <button type="button" id="fitDesktop" style="color:#111;background:#e5e7eb;border-color:#bbb;">通常</button>
+      </div>
+    </div>
+    <small class="help" id="status">準備完了。親マスを追加し、必要な子マスを配置してください。</small>
   </div>
 </div>
 
 <script>
 (() => {
-  const $ = id => document.getElementById(id);
-  const paper = $('paper'), stage = $('stage'), gridBg = $('gridBg'), popup = $('contextPopup');
-  const mm = 3.78;
-  const sizes = { A4: [210, 297], B5: [182, 257] };
-  let cells = [], selected = null, nextId = 1, drag = null;
+ const $ = id => document.getElementById(id);
+ const paper = $('paper'), stage = $('stage'), gridBg = $('gridBg'), popup = $('contextPopup');
+ const mm = 3.78;
+ const sizes = { A4: [210, 297], B5: [182, 257] };
+ let cells = [], selected = null, nextId = 1, drag = null, textImageEditId = null;
+ const fields = ['w', 'h', 'bg', 'fontSize', 'lockRatio', 'cellText', 'textColor'];
+ const get = id => $(id).value;
+ const set = (id, v) => $(id).value = v;
+ const selectedCell = () => cells.find(c => c.id === selected);
 
-  const get = id => $(id).value;
-  const set = (id, v) => $(id).value = v;
-  const selectedCell = () => cells.find(c => c.id === selected);
+ function dims() {
+  let [w, h] = sizes[get('paperSize')];
+  if (get('orientation') === 'landscape') [w, h] = [h, w];
+  return [w, h];
+ }
+ function boardBounds() {
+  const [pw, ph] = dims();
+  return { x: 0, y: ph * 0.10, w: pw, h: ph * 0.90 };
+ }
+ function parentDefaultSize() { return { w: 90, h: 85 }; }
 
-  function dims() {
-    let [w, h] = sizes[get('paperSize')];
-    if (get('orientation') === 'landscape') [w, h] = [h, w];
-    return [w, h];
+ function paperSetup() {
+  let [w, h] = dims();
+  stage.style.width = (w * mm) + 'px';
+  stage.style.height = (h * mm) + 'px';
+  $('paperLabel').textContent = get('paperSize') + '・' + (get('orientation') === 'portrait' ? '縦' : '横') + '（' + w + '×' + h + 'mm）';
+  $('sheetHeader').style.height = '10%';
+  render();
+  fitStage();
+ }
+
+ function fitStage() {
+  const wrap = $('stageWrap');
+  const scale = Math.min(1, (wrap.clientWidth - 28) / stage.offsetWidth, (wrap.clientHeight - 48) / stage.offsetHeight);
+  const s = Math.max(0.25, scale);
+  stage.style.transform = 'scale(' + s + ')';
+  stage.style.marginBottom = (stage.offsetHeight * (s - 1)) + 'px';
+  stage.style.marginRight = (stage.offsetWidth * (s - 1)) + 'px';
+  positionPopup();
+ }
+
+ function snap(v) { return $('gridToggle').checked ? Math.round(v / 5) * 5 : v; }
+
+ function addCell(kind, parentId = null) {
+  const board = boardBounds(), base = parentDefaultSize();
+  const c = {
+   id: nextId++, kind, parentId,
+   x: kind === 'child' ? 10 : 15,
+   y: kind === 'child' ? 10 : board.y + 10,
+   w: kind === 'child' ? Math.min(20, base.w - 5) : 90,
+   h: kind === 'child' ? 15 : 85,
+   text: kind === 'parent' ? '親マス' : '子マス',
+   type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: 22
+  };
+  if (kind === 'parent') {
+   const n = cells.filter(x => x.kind === 'parent').length;
+   const cols = Math.max(1, Math.floor((board.w - 10) / 90));
+   c.x = board.x + 5 + (n % cols) * 90;
+   c.y = board.y + 5 + Math.floor(n / cols) * 85;
+   c.w = 90; c.h = 85;
   }
-  function boardBounds() {
-    const [pw, ph] = dims();
-    return { x: 0, y: ph * 0.10, w: pw, h: ph * 0.90 };
+  if (parentId) {
+   const p = cells.find(x => x.id === parentId);
+   if (!p) return;
+   c.x = Math.min(10, p.w - 10);
+   c.y = Math.min(10, p.h - 10);
   }
+  cells.push(c);
+  selected = c.id;
+  render();
+  syncPanel();
+  $('status').textContent = kind === 'child' ? '子マスを追加しました。' : '親マスを追加しました。';
+  return c;
+ }
 
-  /* 画面サイズにぴったり収まるよう自動スケーリング（上下スクロール不要） */
-  function fitStage() {
-    const wrap = $('stageWrap');
-    const availW = wrap.clientWidth - 24;
-    const availH = wrap.clientHeight - 32;
-    const scale = Math.min(availW / stage.offsetWidth, availH / stage.offsetHeight, 1.5);
-    stage.style.transform = `scale(${scale})`;
-    positionPopup();
+ function addParentTemplate(format) {
+  const parent = addCell('parent');
+  if (!parent) return;
+  parent.format = format;
+  const specs = format === 'assembly'
+   ? [{ x: 0, w: 20 }, { x: 20, w: 20 }, { x: 40, w: 30 }, { x: 70, w: 20 }]
+   : [{ x: 0, w: 20 }, { x: 20, w: 20 }];
+  specs.forEach(spec => cells.push({
+   id: nextId++, kind: 'child', parentId: parent.id,
+   x: spec.x, y: 0, w: spec.w, h: 15,
+   text: '子マス', type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: 22
+  }));
+  selected = parent.id;
+  render();
+  syncPanel();
+ }
+
+ function descendants(id) { return cells.filter(c => c.parentId === id); }
+
+ function makeTextImage(text, color, size, clearBg = true, bg = '#ffffff') {
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = `bold ${size}px sans-serif`;
+  const width = Math.max(20, Math.ceil(measure.measureText(text).width + 24));
+  const height = Math.max(30, Math.ceil(size * 1.8));
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!clearBg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height); }
+  ctx.font = `bold ${size}px sans-serif`;
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'middle';
+  let x = 12;
+  for (const ch of text) {
+   const cw = ctx.measureText(ch).width;
+   if (ch === '□') { const side = size * .68; ctx.fillRect(x + (cw - side) / 2, (height - side) / 2, side, side); }
+   else if (ch === '○') { const r = size * .36; ctx.beginPath(); ctx.arc(x + cw / 2, height / 2, r, 0, Math.PI * 2); ctx.fill(); }
+   else { ctx.fillText(ch, x, height / 2); }
+   x += cw;
   }
+  return canvas.toDataURL('image/png');
+ }
 
-  function paperSetup() {
-    const [w, h] = dims();
-    stage.style.width = (w * mm) + 'px';
-    stage.style.height = (h * mm) + 'px';
-    $('paperLabel').textContent = `${get('paperSize')}・${get('orientation') === 'portrait' ? '縦' : '横'}（${w}×${h}mm）`;
-    render();
-    fitStage();
+ /* 選択マスの種類に応じたフローティング・ポップアップ */
+ function updateContextPopup() {
+  const c = selectedCell();
+  if (!c || drag) {
+   popup.hidden = true;
+   return;
   }
-
-  function snap(v) {
-    return $('gridToggle').checked ? Math.round(v / 5) * 5 : v;
+  let html = '';
+  if (c.kind === 'parent') {
+   html = `
+    <span class="badge">親マス</span>
+    <button type="button" class="primary" data-act="addChild">＋子マス</button>
+    <button type="button" data-act="addImg">＋画像</button>
+    <button type="button" data-act="addTxtImg">＋文字画像</button>
+    <button type="button" data-act="edit">編集</button>
+    <button type="button" data-act="dup">複製</button>
+    <button type="button" class="danger" data-act="del">削除</button>
+   `;
+  } else if (c.kind === 'child') {
+   html = `
+    <span class="badge">子マス</span>
+    <button type="button" class="primary" data-act="edit">文字・サイズ編集</button>
+    <button type="button" data-act="dup">複製</button>
+    <button type="button" class="danger" data-act="del">削除</button>
+   `;
+  } else {
+   const isTextImg = c.type === 'textImage';
+   html = `
+    <span class="badge">${isTextImg ? '文字画像' : '画像'}</span>
+    ${isTextImg
+      ? `<button type="button" class="primary" data-act="editTextImg">文言・色編集</button>`
+      : `<button type="button" data-act="rotL">↺90°</button><button type="button" data-act="rotR">↻90°</button>`}
+    <button type="button" data-act="edit">サイズ・色編集</button>
+    <button type="button" data-act="dup">複製</button>
+    <button type="button" class="danger" data-act="del">削除</button>
+   `;
   }
+  popup.innerHTML = html;
+  popup.hidden = false;
+  positionPopup();
+ }
 
-  function addCell(kind, parentId = null) {
-    const board = boardBounds();
-    const c = {
-      id: nextId++,
-      kind,
-      parentId,
-      x: kind === 'child' ? 5 : 10,
-      y: kind === 'child' ? 15 : board.y + 5,
-      w: kind === 'child' ? 25 : 90,
-      h: kind === 'child' ? 15 : 85,
-      text: kind === 'parent' ? '親マス' : '子マス',
-      bg: '#ffffff',
-      textColor: '#111111',
-      fontSize: 20
-    };
-    if (kind === 'parent') {
-      const n = cells.filter(x => x.kind === 'parent').length;
-      const cols = Math.max(1, Math.floor((board.w - 10) / 90));
-      c.x = board.x + 5 + (n % cols) * 90;
-      c.y = board.y + 5 + Math.floor(n / cols) * 85;
+ function positionPopup() {
+  const c = selectedCell();
+  if (!c || popup.hidden) return;
+  const el = paper.querySelector(`.cell[data-id="${c.id}"]`);
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const popRect = popup.getBoundingClientRect();
+  const gap = 10;
+
+  let left = rect.left + rect.width / 2 - popRect.width / 2;
+  left = Math.max(8, Math.min(window.innerWidth - popRect.width - 8, left));
+
+  let top = rect.top - popRect.height - gap;
+  if (top < 52) top = rect.bottom + gap;
+  if (top + popRect.height > window.innerHeight - 64) top = 52;
+
+  popup.style.left = left + 'px';
+  popup.style.top = top + 'px';
+ }
+
+ popup.addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const c = selectedCell();
+  if (!c) return;
+  const act = btn.dataset.act;
+
+  if (act === 'addChild') addCell('child', c.id);
+  else if (act === 'addImg') $('imageFile').click();
+  else if (act === 'addTxtImg') openTextImageDialog();
+  else if (act === 'editTextImg') openTextImageDialog(c);
+  else if (act === 'edit') { syncPanel(); $('editSheet').hidden = false; }
+  else if (act === 'rotL') rotateSelectedImage(-90);
+  else if (act === 'rotR') rotateSelectedImage(90);
+  else if (act === 'dup') {
+   const copy = { ...c, id: nextId++, x: c.x + 10, y: c.y + 10 };
+   cells.push(copy);
+   if (c.kind === 'parent') {
+    descendants(c.id).forEach(ch => cells.push({ ...ch, id: nextId++, parentId: copy.id }));
+   }
+   selected = copy.id;
+   render();
+   syncPanel();
+  } else if (act === 'del') {
+   cells = cells.filter(x => x.id !== c.id && x.parentId !== c.id);
+   selected = null;
+   render();
+   syncPanel();
+  }
+ });
+
+ function render() {
+  paper.querySelectorAll('.cell').forEach(e => e.remove());
+  const layer = c => c.kind === 'parent' ? 1 : c.kind === 'child' ? 20 : (c.type === 'textImage' ? 40 : 30);
+  const sorted = [...cells].sort((a, b) => layer(a) - layer(b));
+
+  for (const c of sorted) {
+   const cls = c.kind === 'parent' ? 'parent' : c.kind === 'child' ? 'child' : (c.type === 'textImage' ? 'text-image' : 'image-object');
+   const el = document.createElement('div');
+   el.className = 'cell ' + cls + (c.id === selected ? ' selected' : '');
+   el.dataset.id = c.id;
+
+   const parent = c.parentId ? cells.find(p => p.id === c.parentId) : null;
+   let x = c.x, y = c.y;
+   if (parent) { x += parent.x; y += parent.y; }
+
+   el.style.left = x * mm + 'px';
+   el.style.top = y * mm + 'px';
+   el.style.width = c.w * mm + 'px';
+   el.style.height = c.h * mm + 'px';
+   el.style.background = c.bg;
+   el.style.zIndex = String(layer(c));
+
+   const content = document.createElement('div');
+   content.className = 'cell-content';
+   content.style.fontSize = c.fontSize + 'px';
+   content.style.color = c.textColor || '#111111';
+
+   if (c.contentData) {
+    const img = document.createElement('img');
+    img.src = c.contentData;
+    img.alt = c.text || '挿入画像';
+    const rot = ((c.rotation || 0) % 360 + 360) % 360;
+    if (rot % 180) {
+     img.style.position = 'absolute';
+     img.style.left = '50%';
+     img.style.top = '50%';
+     img.style.width = (c.h / c.w * 100) + '%';
+     img.style.height = (c.w / c.h * 100) + '%';
+     img.style.transform = 'translate(-50%,-50%) rotate(' + rot + 'deg)';
+     img.style.objectFit = 'contain';
+    } else if (rot) {
+     img.style.transform = 'rotate(' + rot + 'deg)';
     }
-    if (parentId) {
-      const p = cells.find(x => x.id === parentId);
-      if (!p) return;
-      c.x = Math.min(5, Math.max(0, p.w - c.w));
-      c.y = Math.min(20, Math.max(0, p.h - c.h));
-    }
-    cells.push(c);
-    selected = c.id;
-    render();
-    return c;
-  }
+    content.style.position = 'relative';
+    content.appendChild(img);
+   } else {
+    content.textContent = c.text || (c.kind === 'child' ? '子マス' : '親マス');
+   }
+   el.appendChild(content);
 
-  function addParentTemplate(format) {
-    const parent = addCell('parent');
-    if (!parent) return;
-    parent.format = format;
-    const specs = format === 'assembly'
-      ? [{ x: 0, w: 20 }, { x: 20, w: 20 }, { x: 40, w: 30 }, { x: 70, w: 20 }]
-      : [{ x: 0, w: 20 }, { x: 20, w: 20 }];
-    specs.forEach(spec => {
-      cells.push({
-        id: nextId++,
-        kind: 'child',
-        parentId: parent.id,
-        x: spec.x,
-        y: 0,
-        w: spec.w,
-        h: 15,
-        text: '子マス',
-        bg: '#ffffff',
-        textColor: '#111111',
-        fontSize: 18
-      });
+   if (c.id === selected) {
+    ['nw', 'ne', 'sw', 'se'].forEach(pos => {
+     const h = document.createElement('i');
+     h.className = 'handle ' + pos;
+     h.dataset.handle = pos;
+     el.appendChild(h);
     });
-    selected = parent.id;
-    render();
-  }
+   }
 
-  /* 選択したマスの種類に応じた操作ポップアップを構築＆配置 */
-  function updatePopup() {
-    const c = selectedCell();
-    if (!c || drag) {
-      popup.hidden = true;
-      return;
-    }
-
-    let html = '';
-    if (c.kind === 'parent') {
-      html = `
-        <span class="badge">親マス</span>
-        <button class="primary" data-act="addChild">＋子マス</button>
-        <button data-act="edit">編集</button>
-        <button data-act="dup">複製</button>
-        <button class="danger" data-act="del">削除</button>
-      `;
-    } else if (c.kind === 'child') {
-      html = `
-        <span class="badge">子マス</span>
-        <button class="primary" data-act="edit">文字・編集</button>
-        <button data-act="dup">複製</button>
-        <button class="danger" data-act="del">削除</button>
-      `;
-    } else if (c.kind === 'image') {
-      html = `
-        <span class="badge">画像</span>
-        <button data-act="rotR">↻ 回転</button>
-        <button class="primary" data-act="edit">サイズ・編集</button>
-        <button data-act="dup">複製</button>
-        <button class="danger" data-act="del">削除</button>
-      `;
-    }
-    popup.innerHTML = html;
-    popup.hidden = false;
-    positionPopup();
-  }
-
-  function positionPopup() {
-    const c = selectedCell();
-    if (!c || popup.hidden) return;
-    const cellEl = paper.querySelector(`.cell[data-id="${c.id}"]`);
-    if (!cellEl) return;
-
-    const rect = cellEl.getBoundingClientRect();
-    const popRect = popup.getBoundingClientRect();
-    const margin = 10;
-
-    // 画面横幅からはみ出さないよう中央揃え＋クランプ
-    let left = rect.left + rect.width / 2 - popRect.width / 2;
-    left = Math.max(8, Math.min(window.innerWidth - popRect.width - 8, left));
-
-    // 基本はマスの上側に表示。上にスペースがなければマスの下側に表示
-    let top = rect.top - popRect.height - margin;
-    if (top < 52) {
-      top = rect.bottom + margin;
-    }
-    // 下部バーとも被る場合は画面上部（ヘッダー直下）に固定表示
-    if (top + popRect.height > window.innerHeight - 66) {
-      top = 52;
-    }
-
-    popup.style.left = `${left}px`;
-    popup.style.top = `${top}px`;
-  }
-
-  /* ポップアップ内のボタンアクション */
-  popup.addEventListener('click', e => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    const act = btn.dataset.act;
-    const c = selectedCell();
-    if (!c) return;
-
-    if (act === 'addChild') {
-      addCell('child', c.id);
-    } else if (act === 'edit') {
-      openEditSheet(c);
-    } else if (act === 'rotR') {
-      c.rotation = ((c.rotation || 0) + 90) % 360;
-      render();
-    } else if (act === 'dup') {
-      const copy = { ...c, id: nextId++, x: c.x + 8, y: c.y + 8 };
-      cells.push(copy);
-      // 親マス複製時は子マスも一緒に複製
-      if (c.kind === 'parent') {
-        cells.filter(ch => ch.parentId === c.id).forEach(ch => {
-          cells.push({ ...ch, id: nextId++, parentId: copy.id });
-        });
-      }
-      selected = copy.id;
-      render();
-    } else if (act === 'del') {
-      cells = cells.filter(x => x.id !== c.id && x.parentId !== c.id);
-      selected = null;
-      render();
-    }
-  });
-
-  function openEditSheet(c) {
-    const isImg = c.kind === 'image';
-    $('editSheetTitle').textContent = c.kind === 'parent' ? '親マスの編集' : c.kind === 'child' ? '子マスの編集' : '画像の編集';
-    $('fieldTextWrap').hidden = isImg;
-    $('fieldFontSizeWrap').hidden = isImg;
-    $('imageRotateControls').hidden = !isImg;
-
-    set('w', Math.round(c.w));
-    set('h', Math.round(c.h));
-    set('bg', c.bg === 'transparent' ? '#ffffff' : c.bg);
-    set('fontSize', c.fontSize);
-    set('cellText', c.text || '');
-    set('textColor', c.textColor || '#111111');
-    $('editCellSheet').hidden = false;
-  }
-
-  function updateFromSheet(e) {
-    const c = selectedCell();
-    if (!c) return;
-    const minSize = c.kind === 'child' ? 5 : 10;
-    c.w = Math.max(minSize, +get('w') || minSize);
-    c.h = Math.max(minSize, +get('h') || minSize);
-    if (c.bg !== 'transparent' || (e && e.target && e.target.id === 'bg')) {
-      c.bg = get('bg');
-    }
-    c.fontSize = +get('fontSize') || 18;
-    c.text = get('cellText');
-    c.textColor = get('textColor');
-    if (c.parentId) {
-      const p = cells.find(p => p.id === c.parentId);
-      if (p) {
-        c.x = Math.max(0, Math.min(c.x, p.w - c.w));
-        c.y = Math.max(0, Math.min(c.y, p.h - c.h));
-      }
-    }
-    render();
-  }
-
-  ['w', 'h', 'bg', 'fontSize', 'cellText', 'textColor'].forEach(id => {
-    $(id).addEventListener('input', updateFromSheet);
-  });
-
-  function render() {
-    paper.querySelectorAll('.cell').forEach(e => e.remove());
-    const sorted = [...cells].sort((a, b) => (a.kind === 'child' ? 1 : 0) - (b.kind === 'child' ? 1 : 0));
-
-    for (const c of sorted) {
-      const el = document.createElement('div');
-      el.className = `cell ${c.kind === 'child' ? 'child' : 'parent'}${c.id === selected ? ' selected' : ''}`;
-      el.dataset.id = c.id;
-
-      const parent = c.parentId ? cells.find(p => p.id === c.parentId) : null;
-      let x = c.x, y = c.y;
-      if (parent) { x += parent.x; y += parent.y; }
-
-      el.style.left = (x * mm) + 'px';
-      el.style.top = (y * mm) + 'px';
-      el.style.width = (c.w * mm) + 'px';
-      el.style.height = (c.h * mm) + 'px';
-      el.style.background = c.bg;
-
-      const content = document.createElement('div');
-      content.className = 'cell-content';
-      content.style.fontSize = c.fontSize + 'px';
-      content.style.color = c.textColor || '#111111';
-
-      if (c.contentData) {
-        const img = document.createElement('img');
-        img.src = c.contentData;
-        const rot = ((c.rotation || 0) % 360 + 360) % 360;
-        if (rot % 180) {
-          img.style.position = 'absolute';
-          img.style.left = '50%';
-          img.style.top = '50%';
-          img.style.width = (c.h / c.w * 100) + '%';
-          img.style.height = (c.w / c.h * 100) + '%';
-          img.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
-        } else if (rot) {
-          img.style.transform = `rotate(${rot}deg)`;
-        }
-        content.style.position = 'relative';
-        content.appendChild(img);
-      } else {
-        content.textContent = c.text || '';
-      }
-      el.appendChild(content);
-
-      if (c.id === selected) {
-        ['nw', 'ne', 'sw', 'se'].forEach(pos => {
-          const h = document.createElement('i');
-          h.className = 'handle ' + pos;
-          h.dataset.handle = pos;
-          el.appendChild(h);
-        });
-      }
-
-      el.addEventListener('pointerdown', pointerDown);
-      paper.appendChild(el);
-    }
-
-    gridBg.hidden = !$('gridView').checked;
-    updatePopup();
-  }
-
-  function pointerDown(e) {
-    const id = +e.currentTarget.dataset.id;
-    const c = cells.find(c => c.id === id);
-    selected = id;
-    const handle = e.target.dataset.handle || null;
-
-    // 現在のステージ拡大率を取得してドラッグ移動量を正確に補正
-    const transform = window.getComputedStyle(stage).transform;
-    const currentScale = transform !== 'none' ? parseFloat(transform.split(',')[0].replace('matrix(', '')) : 1;
-
-    drag = {
-      id,
-      handle,
-      scale: currentScale,
-      startX: e.clientX,
-      startY: e.clientY,
-      orig: { x: c.x, y: c.y, w: c.w, h: c.h },
-      parent: c.parentId ? cells.find(p => p.id === c.parentId) : null
-    };
-
-    render();
-    e.preventDefault();
+   el.addEventListener('pointerdown', pointerDown);
+   el.addEventListener('click', e => {
     e.stopPropagation();
-    window.addEventListener('pointermove', pointerMove);
-    window.addEventListener('pointerup', pointerUp, { once: true });
-  }
-
-  function pointerMove(e) {
-    if (!drag) return;
-    const c = cells.find(c => c.id === drag.id);
-    const dx = (e.clientX - drag.startX) / (mm * drag.scale);
-    const dy = (e.clientY - drag.startY) / (mm * drag.scale);
-    const o = drag.orig;
-
-    if (!drag.handle) {
-      c.x = snap(o.x + dx);
-      c.y = snap(o.y + dy);
-    } else {
-      let x = o.x, y = o.y, w = o.w, h = o.h;
-      const k = drag.handle;
-      const minSize = c.kind === 'child' ? 5 : 10;
-      if (k.includes('e')) w = Math.max(minSize, o.w + dx);
-      if (k.includes('s')) h = Math.max(minSize, o.h + dy);
-      if (k.includes('w')) { w = Math.max(minSize, o.w - dx); x = o.x + (o.w - w); }
-      if (k.includes('n')) { h = Math.max(minSize, o.h - dy); y = o.y + (o.h - h); }
-      if ($('lockRatio').checked) {
-        const ratio = o.w / o.h;
-        if (Math.abs(dx) > Math.abs(dy)) h = w / ratio; else w = h * ratio;
-      }
-      c.x = snap(x); c.y = snap(y); c.w = snap(w); c.h = snap(h);
-    }
-
-    if (drag.parent) {
-      c.x = Math.max(0, Math.min(c.x, drag.parent.w - c.w));
-      c.y = Math.max(0, Math.min(c.y, drag.parent.h - c.h));
-    }
-    render();
-  }
-
-  function pointerUp() {
-    drag = null;
-    window.removeEventListener('pointermove', pointerMove);
-    render();
-  }
-
-  /* 文字画像生成 */
-  function makeTextImage(text, color, size, clearBg = true, bg = '#ffffff') {
-    const measure = document.createElement('canvas').getContext('2d');
-    measure.font = `bold ${size}px sans-serif`;
-    const width = Math.max(20, Math.ceil(measure.measureText(text).width + 24));
-    const height = Math.max(30, Math.ceil(size * 1.8));
-    const canvas = document.createElement('canvas');
-    canvas.width = width; canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    if (!clearBg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height); }
-    ctx.font = `bold ${size}px sans-serif`;
-    ctx.fillStyle = color;
-    ctx.textBaseline = 'middle';
-    let x = 12;
-    for (const ch of text) {
-      const cw = ctx.measureText(ch).width;
-      if (ch === '□') { const s = size * 0.68; ctx.fillRect(x + (cw - s) / 2, (height - s) / 2, s, s); }
-      else if (ch === '○') { const r = size * 0.36; ctx.beginPath(); ctx.arc(x + cw / 2, height / 2, r, 0, Math.PI * 2); ctx.fill(); }
-      else { ctx.fillText(ch, x, height / 2); }
-      x += cw;
-    }
-    return canvas.toDataURL('image/png');
-  }
-
-  /* イベントバインド */
-  $('btnAddParent').onclick = () => { $('parentFormatSheet').hidden = false; };
-  $('confirmParent').onclick = () => {
-    $('parentFormatSheet').hidden = true;
-    addParentTemplate(get('parentFormat'));
-  };
-
-  $('btnAddImage').onclick = () => { $('imageFile').click(); };
-  $('imageFile').onchange = e => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const b = boardBounds();
-      const c = {
-        id: nextId++, kind: 'image', parentId: null,
-        x: b.x + 10, y: b.y + 10, w: 80, h: 75,
-        text: file.name, contentData: reader.result, rotation: 0,
-        bg: '#ffffff', textColor: '#111111', fontSize: 20
-      };
-      cells.push(c);
-      selected = c.id;
-      render();
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
-
-  $('btnAddTextImg').onclick = () => {
-    $('textImageSheet').hidden = false;
-    $('textImageValue').focus();
-  };
-  $('textImageClearBg').onchange = () => {
-    $('textImageBgField').hidden = $('textImageClearBg').checked;
-  };
-  $('confirmTextImage').onclick = () => {
-    const val = get('textImageValue').trim();
-    if (!val) return;
-    const color = get('textImageColor');
-    const size = Math.max(8, Math.min(120, Number(get('textImageSize')) || 28));
-    const clearBg = $('textImageClearBg').checked;
-    const data = makeTextImage(val, color, size, clearBg, get('textImageBg'));
-    const measure = document.createElement('canvas').getContext('2d');
-    measure.font = `bold ${size}px sans-serif`;
-    const iw = Math.max(20, Math.ceil(measure.measureText(val).width + 24));
-    const ih = Math.max(30, Math.ceil(size * 1.8));
-    const b = boardBounds();
-    const c = {
-      id: nextId++, kind: 'image', parentId: null,
-      x: b.x + 10, y: b.y + 10,
-      w: Math.max(30, iw / mm), h: Math.max(15, ih / mm),
-      text: val, contentData: data, rotation: 0,
-      bg: clearBg ? 'transparent' : get('textImageBg'), textColor: color, fontSize: size
-    };
-    cells.push(c);
     selected = c.id;
-    $('textImageSheet').hidden = true;
-    set('textImageValue', '');
     render();
-  };
-
-  $('rotateLeft').onclick = () => {
-    const c = selectedCell();
-    if (c) { c.rotation = ((c.rotation || 0) - 90 + 360) % 360; render(); }
-  };
-  $('rotateRight').onclick = () => {
-    const c = selectedCell();
-    if (c) { c.rotation = ((c.rotation || 0) + 90) % 360; render(); }
-  };
-
-  $('btnSettings').onclick = () => { $('settingsSheet').hidden = false; };
-  $('paperSize').onchange = paperSetup;
-  $('orientation').onchange = paperSetup;
-  $('gridView').onchange = () => { gridBg.hidden = !$('gridView').checked; };
-
-  /* ボトムシートの閉じるボタン・背景タップ処理 */
-  document.querySelectorAll('.sheet-close').forEach(btn => {
-    btn.onclick = () => { $(btn.dataset.close).hidden = true; };
-  });
-  document.querySelectorAll('.sheet-backdrop').forEach(bg => {
-    bg.addEventListener('click', e => {
-      if (e.target === bg) bg.hidden = true;
-    });
-  });
-
-  /* 背景タップで選択解除 */
-  $('stageWrap').addEventListener('pointerdown', e => {
-    if (e.target === $('stageWrap') || e.target === paper || e.target === gridBg) {
-      selected = null;
-      render();
-    }
-  });
-
-  $('btnPrint').onclick = () => {
-    selected = null;
-    render();
-    const [pw, ph] = dims();
-    const bounds = cells.reduce((b, c) => {
-      let x = c.x, y = c.y;
-      if (c.parentId) {
-        const p = cells.find(p => p.id === c.parentId);
-        if (p) { x += p.x; y += p.y; }
-      }
-      return { x: Math.min(b.x, x), y: Math.min(b.y, y), r: Math.max(b.r, x + c.w), b: Math.max(b.b, y + c.h) };
-    }, { x: 0, y: 0, r: 0, b: 0 });
-
-    const scale = Math.min((pw - 16) / (bounds.r - bounds.x || 1), (ph - 16) / (bounds.b - bounds.y || 1), 1);
-    if ($('fitPrint').checked) {
-      stage.style.width = pw * mm + 'px';
-      stage.style.height = ph * mm + 'px';
-      paper.style.transformOrigin = 'top left';
-      paper.style.transform = `scale(${scale})`;
-      paper.style.width = pw * mm + 'px';
-      paper.style.height = ph * mm + 'px';
-    }
-    window.print();
-    setTimeout(() => {
-      paper.style.transform = '';
-      paper.style.width = '';
-      paper.style.height = '';
-      fitStage();
-    }, 500);
-  };
-
-  window.addEventListener('resize', fitStage);
-  if (!$('createdDate').value) {
-    const today = new Date();
-    $('createdDate').value = [
-      today.getFullYear(),
-      String(today.getMonth() + 1).padStart(2, '0'),
-      String(today.getDate()).padStart(2, '0')
-    ].join('-');
+    syncPanel();
+   });
+   paper.appendChild(el);
   }
-  paperSetup();
+  gridBg.hidden = !$('gridView').checked;
+  updateContextPopup();
+ }
+
+ function syncPanel() {
+  const c = selectedCell();
+  if (!c) { $('imageRotateControls').hidden = true; return; }
+  const isImg = c.kind === 'image';
+  $('imageRotateControls').hidden = !(isImg && !!c.contentData);
+  $('textFieldWrap').hidden = isImg;
+  $('fontSizeFieldWrap').hidden = isImg;
+  $('editSheetTitle').textContent = (c.kind === 'parent' ? '親マス' : c.kind === 'child' ? '子マス' : (c.type === 'textImage' ? '文字画像' : '画像')) + 'の編集';
+  set('kindLabel', c.kind === 'parent' ? '親マス（' + (c.format === 'assembly' ? '部品＋ボルト・ナット' : '部品単品') + '）' : c.kind === 'child' ? '子マス' : c.type === 'textImage' ? '文字画像' : '画像');
+  set('w', Math.round(c.w));
+  set('h', Math.round(c.h));
+  set('bg', c.bg === 'transparent' ? '#ffffff' : c.bg);
+  set('fontSize', c.fontSize);
+  set('cellText', c.text || '');
+  set('textColor', c.textColor || '#111111');
+ }
+
+ function updateFromPanel(e) {
+  const c = selectedCell();
+  if (!c) return;
+  const minSize = c.kind === 'child' ? 5 : 10;
+  c.w = Math.max(minSize, +get('w') || minSize);
+  c.h = Math.max(minSize, +get('h') || minSize);
+  if (c.bg !== 'transparent' || (e && e.target && e.target.id === 'bg')) c.bg = get('bg');
+  c.fontSize = +get('fontSize') || 16;
+  c.text = get('cellText');
+  c.textColor = get('textColor');
+  if (c.type === 'textImage') c.contentData = makeTextImage(c.text, c.textColor, c.fontSize, c.bg === 'transparent', c.textImageBg || '#ffffff');
+  if (c.parentId) {
+   const p = cells.find(p => p.id === c.parentId);
+   if (p) {
+    c.x = Math.max(0, Math.min(c.x, p.w - c.w));
+    c.y = Math.max(0, Math.min(c.y, p.h - c.h));
+   }
+  }
+  render();
+ }
+
+ function getStageScale() {
+  const rect = stage.getBoundingClientRect();
+  return stage.offsetWidth ? rect.width / stage.offsetWidth : 1;
+ }
+
+ function pointerDown(e) {
+  const id = +e.currentTarget.dataset.id, c = cells.find(c => c.id === id);
+  selected = id;
+  const handle = e.target.dataset.handle || null;
+  drag = {
+   id, handle,
+   scale: getStageScale(),
+   startX: e.clientX, startY: e.clientY,
+   orig: { x: c.x, y: c.y, w: c.w, h: c.h },
+   parent: c.parentId ? cells.find(p => p.id === c.parentId) : null
+  };
+  popup.hidden = true;
+  render();
+  syncPanel();
+  e.preventDefault();
+  e.stopPropagation();
+  window.addEventListener('pointermove', pointerMove);
+  window.addEventListener('pointerup', pointerUp, { once: true });
+ }
+
+ function pointerMove(e) {
+  if (!drag) return;
+  const c = cells.find(c => c.id === drag.id);
+  const dx = (e.clientX - drag.startX) / (mm * drag.scale);
+  const dy = (e.clientY - drag.startY) / (mm * drag.scale);
+  const o = drag.orig;
+
+  if (!drag.handle) {
+   c.x = snap(o.x + dx);
+   c.y = snap(o.y + dy);
+  } else {
+   let x = o.x, y = o.y, w = o.w, h = o.h;
+   const k = drag.handle;
+   const minSize = c.kind === 'child' ? 5 : 10;
+   if (k.includes('e')) w = Math.max(minSize, o.w + dx);
+   if (k.includes('s')) h = Math.max(minSize, o.h + dy);
+   if (k.includes('w')) { w = Math.max(minSize, o.w - dx); x = o.x + (o.w - w); }
+   if (k.includes('n')) { h = Math.max(minSize, o.h - dy); y = o.y + (o.h - h); }
+   if ($('lockRatio').checked) {
+    const ratio = o.w / o.h;
+    if (Math.abs(dx) > Math.abs(dy)) h = w / ratio; else w = h * ratio;
+   }
+   c.x = snap(x); c.y = snap(y); c.w = snap(w); c.h = snap(h);
+  }
+  if (drag.parent) {
+   c.x = Math.max(0, Math.min(c.x, drag.parent.w - c.w));
+   c.y = Math.max(0, Math.min(c.y, drag.parent.h - c.h));
+  }
+  render();
+  syncPanel();
+ }
+
+ function pointerUp() {
+  drag = null;
+  window.removeEventListener('pointermove', pointerMove);
+  render();
+  syncPanel();
+ }
+
+ $('addParent').onclick = () => { $('parentFormatDialog').hidden = false; };
+ $('cancelParent').onclick = () => { $('parentFormatDialog').hidden = true; };
+ $('confirmParent').onclick = () => { const fmt = get('parentFormat'); $('parentFormatDialog').hidden = true; addParentTemplate(fmt); };
+
+ fields.forEach(id => $(id).addEventListener('input', updateFromPanel));
+
+ $('addImage').onclick = () => { $('imageFile').click(); };
+ function rotateSelectedImage(delta) {
+  const c = selectedCell();
+  if (!c || c.kind !== 'image' || !c.contentData) return;
+  c.rotation = ((c.rotation || 0) + delta + 360) % 360;
+  render();
+  syncPanel();
+ }
+ $('rotateLeft').onclick = () => rotateSelectedImage(-90);
+ $('rotateRight').onclick = () => rotateSelectedImage(90);
+
+ $('imageFile').onchange = e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const parent = selectedCell();
+  if (!parent || parent.kind !== 'parent') {
+   alert('画像を配置する親マスを選択してから画像挿入してください。');
+   e.target.value = '';
+   return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+   const c = {
+    id: nextId++, kind: 'image', parentId: parent.id,
+    x: 0, y: 0, w: Math.min(90, parent.w), h: Math.min(70, parent.h),
+    text: file.name, contentData: reader.result, rotation: 0,
+    bg: 'transparent', textColor: '#111111', fontSize: 22
+   };
+   cells.push(c);
+   selected = c.id;
+   render();
+   syncPanel();
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+ };
+
+ function openTextImageDialog(c = null) {
+  textImageEditId = c ? c.id : null;
+  $('textImageValue').value = c ? (c.text || '') : '';
+  $('textImageColor').value = c ? (c.textColor || '#111111') : '#111111';
+  $('textImageSize').value = c ? (c.fontSize || 22) : 22;
+  $('textImageClearBg').checked = !c || c.bg === 'transparent';
+  $('textImageBg').value = c && c.textImageBg ? c.textImageBg : '#ffffff';
+  $('textImageBgField').hidden = $('textImageClearBg').checked;
+  $('textImageTitle').textContent = c ? '文字画像の編集' : '文字画像の作成';
+  $('confirmTextImage').textContent = c ? '変更を反映' : '挿入';
+  $('textImageDialog').hidden = false;
+  $('textImageValue').focus();
+ }
+
+ $('addTextImage').onclick = () => {
+  const current = selectedCell();
+  if (current && current.type === 'textImage') { openTextImageDialog(current); return; }
+  if (!current || current.kind !== 'parent') {
+   alert('文字画像を配置する親マスを選択してから挿入してください。');
+   return;
+  }
+  openTextImageDialog();
+ };
+ $('textImageClearBg').onchange = () => { $('textImageBgField').hidden = $('textImageClearBg').checked; };
+ $('cancelTextImage').onclick = () => { $('textImageDialog').hidden = true; textImageEditId = null; };
+ $('confirmTextImage').onclick = () => {
+  const value = get('textImageValue').trim();
+  if (!value) { alert('文字を入力してください。'); return; }
+  const color = get('textImageColor');
+  const size = Math.max(8, Math.min(120, Number(get('textImageSize')) || 22));
+  const clearBg = $('textImageClearBg').checked;
+  const bg = clearBg ? null : get('textImageBg');
+  const data = makeTextImage(value, color, size, clearBg, bg || '#ffffff');
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = `bold ${size}px sans-serif`;
+  const imageW = Math.max(20, Math.ceil(measure.measureText(value).width + 24));
+  const imageH = Math.max(30, Math.ceil(size * 1.8));
+
+  if (textImageEditId !== null) {
+   const c = cells.find(x => x.id === textImageEditId);
+   if (c) {
+    c.text = value; c.textColor = color; c.fontSize = size;
+    c.bg = clearBg ? 'transparent' : '#ffffff';
+    c.textImageBg = bg; c.contentData = data;
+   }
+   selected = textImageEditId;
+  } else {
+   const parent = selectedCell();
+   if (!parent || parent.kind !== 'parent') { alert('配置先の親マスを選択してください。'); return; }
+   const c = {
+    id: nextId++, kind: 'image', type: 'textImage', parentId: parent.id,
+    x: 0, y: 0, w: Math.min(parent.w, Math.max(30, imageW / mm)), h: Math.min(parent.h, Math.max(15, imageH / mm)),
+    text: value, contentData: data, rotation: 0,
+    bg: clearBg ? 'transparent' : '#ffffff', textColor: color, fontSize: size, textImageBg: bg
+   };
+   cells.push(c);
+   selected = c.id;
+  }
+  textImageEditId = null;
+  $('textImageDialog').hidden = true;
+  render();
+  syncPanel();
+ };
+
+ $('openSettings').onclick = () => { $('settingsSheet').hidden = false; };
+ document.querySelectorAll('.sheet-close').forEach(btn => {
+  btn.onclick = () => { $(btn.dataset.close).hidden = true; };
+ });
+ document.querySelectorAll('.sheet-backdrop').forEach(bg => {
+  bg.addEventListener('click', e => { if (e.target === bg) bg.hidden = true; });
+ });
+
+ $('paperSize').onchange = paperSetup;
+ $('orientation').onchange = paperSetup;
+ $('gridToggle').onchange = () => { $('status').textContent = $('gridToggle').checked ? '5mm単位の吸着を有効にしました。' : '自由配置にしました。'; };
+ $('gridView').onchange = () => { gridBg.hidden = !$('gridView').checked; };
+ $('phonePortrait').onclick = () => { document.body.classList.add('phone-app'); fitStage(); };
+ $('phoneLandscape').onclick = () => { set('orientation', 'landscape'); paperSetup(); };
+ $('fitDesktop').onclick = () => { document.body.classList.remove('phone-app'); stage.style.transform = ''; stage.style.marginBottom = ''; stage.style.marginRight = ''; positionPopup(); };
+
+ $('print').onclick = () => {
+  const [pw, ph] = dims();
+  const contentBounds = cells.reduce((b, c) => {
+   let x = c.x, y = c.y;
+   if (c.parentId) { const p = cells.find(p => p.id === c.parentId); if (p) { x += p.x; y += p.y; } }
+   return { x: Math.min(b.x, x), y: Math.min(b.y, y), r: Math.max(b.r, x + c.w), b: Math.max(b.b, y + c.h) };
+  }, { x: 0, y: 0, r: 0, b: 0 });
+  const scale = Math.min((pw - 16) / (contentBounds.r - contentBounds.x || 1), (ph - 16) / (contentBounds.b - contentBounds.y || 1), 1);
+  if ($('fitPrint').checked) {
+   stage.style.width = pw * mm + 'px';
+   stage.style.height = ph * mm + 'px';
+   paper.style.transformOrigin = 'top left';
+   paper.style.transform = 'scale(' + scale + ')';
+   paper.style.width = pw * mm + 'px';
+   paper.style.height = ph * mm + 'px';
+  }
+  window.print();
+  setTimeout(() => {
+   paper.style.transform = ''; paper.style.width = ''; paper.style.height = '';
+   fitStage();
+  }, 500);
+ };
+
+ paper.addEventListener('pointerdown', e => {
+  if (e.target === paper || e.target === gridBg) {
+   selected = null;
+   render();
+   syncPanel();
+  }
+ });
+ $('stageWrap').addEventListener('scroll', positionPopup, { passive: true });
+ window.addEventListener('resize', fitStage);
+ if (!$('createdDate').value) {
+  const today = new Date();
+  $('createdDate').value = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
+ }
+ paperSetup();
+ render();
+ syncPanel();
 })();
 </script>
 </body>
