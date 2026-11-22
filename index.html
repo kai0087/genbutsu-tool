@@ -2,307 +2,1002 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>現物表示マス編集 試作</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>現物表示マス編集（スマホ最適UI）</title>
 <style>
-:root{font-family:Arial,"Noto Sans JP",sans-serif;color:#111;background:#eee;font-size:14px}
-*{box-sizing:border-box}
-body{margin:0}
-header{height:auto;min-height:48px;background:#222;color:#fff;padding:10px 14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-header strong{font-size:16px}
-button,select,input{font:inherit}
-button{padding:6px 10px;border:1px solid #777;background:#fff;color:#111;border-radius:2px;cursor:pointer}
-button:disabled{opacity:.4;cursor:default}
-select,input[type=number],input[type=text]{padding:5px;border:1px solid #888;border-radius:2px;max-width:100%}
-input[type=checkbox]{vertical-align:middle}
-.toolbar{display:flex;gap:6px;flex-wrap:wrap;padding:9px;background:#d8d8d8;border-bottom:1px solid #aaa}
-.toolbar .group{display:flex;gap:5px;align-items:center;padding-right:10px;margin-right:4px;border-right:1px solid #aaa}
-main{display:grid;grid-template-columns:minmax(0,1fr) 270px;min-height:calc(100vh - 100px)}
-body.phone-portrait main{display:flex;flex-direction:column;max-width:440px;margin:0 auto;min-height:100vh;border:1px solid #666;background:#fff}
-body.phone-portrait .stage-wrap{min-height:54vh;padding:20px 12px;overflow:auto}
-body.phone-portrait aside{border-left:0;border-top:1px solid #aaa;max-height:42vh}
-body.phone-landscape main{display:grid;grid-template-columns:minmax(0,1fr) 245px;max-width:900px;margin:0 auto;min-height:100vh;border:1px solid #666}
-body.phone-landscape .stage-wrap{min-height:100vh;padding:14px 8px;overflow:auto}
-body.phone-landscape aside{max-height:100vh}
-body.phone-portrait header span,body.phone-landscape header span{display:none}
-body.phone-portrait .toolbar,body.phone-landscape .toolbar{gap:4px;padding:6px}
-body.phone-portrait .toolbar button,body.phone-landscape .toolbar button{padding:7px 8px}
-body.phone-portrait .toolbar .group,body.phone-landscape .toolbar .group{padding-right:4px;margin-right:2px}
-.stage-wrap{overflow:auto;padding:22px;background:#aaa;min-height:600px}
-.stage{position:relative;margin:0 auto;background:#fff;box-shadow:0 1px 5px #555;transform-origin:top center}
-.paper-label{position:absolute;top:-21px;left:0;color:#222;font-size:12px}
-.sheet-header{position:absolute;top:0;left:0;right:0;height:10%;border-bottom:1px solid #111;display:flex;align-items:center;justify-content:flex-start;gap:5px;padding:2mm 3mm;font-size:12px;background:#fff;z-index:5;flex-wrap:nowrap;white-space:nowrap;overflow:hidden}
-.sheet-header .sheet-title input{width:43mm;font-weight:bold;font-size:14px}
-.sheet-header label{display:flex;align-items:center;gap:3px;white-space:nowrap;flex:0 0 auto}
-.sheet-header input{width:29mm;min-width:0;border:1px solid #777;padding:2px;font-size:12px;background:transparent}
-#paper{position:absolute;inset:0;overflow:hidden}
-.grid-bg{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(to right,#ddd 1px,transparent 1px),linear-gradient(to bottom,#ddd 1px,transparent 1px);background-size:10px 10px}
-.cell{position:absolute;border:1px solid #333;background:#fff;min-width:5px;min-height:5px;user-select:none;touch-action:none}
-.cell.selected{outline:2px solid #111;outline-offset:2px}
-.cell.parent{background:#fff;z-index:1!important}.cell.child{z-index:20!important}.cell.child.selected{z-index:25!important}.cell.parent.selected{z-index:3!important}
-.cell.child{border-style:solid}
-.cell-content{width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;text-align:center;padding:3px;white-space:pre-wrap;word-break:break-word;pointer-events:none}.cell-content img{width:100%;height:100%;object-fit:contain}.sheet-header{font-size:12px;font-weight:700;gap:5px}.sheet-header .sheet-title{font-size:14px;font-weight:800;white-space:nowrap}.sheet-header label{font-size:11px;font-weight:700;gap:3px}.sheet-header input{font-size:11px;font-weight:600;width:29mm;padding:2px}.sheet-header .sheet-title input{font-size:14px;font-weight:800;width:43mm}
-.cell .handle{position:absolute;width:9px;height:9px;background:#111;border:1px solid white;z-index:10}
-.handle.nw{left:-5px;top:-5px;cursor:nwse-resize}.handle.ne{right:-5px;top:-5px;cursor:nesw-resize}
-.handle.sw{left:-5px;bottom:-5px;cursor:nesw-resize}.handle.se{right:-5px;bottom:-5px;cursor:nwse-resize}
-.handle.n{left:calc(50% - 4px);top:-5px;cursor:ns-resize}.handle.s{left:calc(50% - 4px);bottom:-5px;cursor:ns-resize}
-.handle.e{right:-5px;top:calc(50% - 4px);cursor:ew-resize}.handle.w{left:-5px;top:calc(50% - 4px);cursor:ew-resize}
-.dialog-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;display:flex;align-items:center;justify-content:center;padding:15px}
-.dialog-backdrop[hidden]{display:none}
-.dialog{width:min(100%,360px);background:white;border:1px solid #777;padding:16px;box-shadow:0 4px 18px #333}
-.dialog h3{margin:0 0 12px;font-size:16px}
-.dialog label{display:block}
-.dialog select{width:100%;margin-top:6px;padding:8px}
-.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
-aside{background:#f7f7f7;border-left:1px solid #aaa;padding:12px;overflow:auto}
-aside h3{font-size:15px;margin:0 0 12px}
-.field{margin:0 0 11px}
-.field label{display:block;font-size:12px;margin-bottom:4px;color:#333}
-.field input[type=text],.field input[type=number],.field select{width:100%}
-.row{display:flex;gap:7px}.row>*{flex:1;min-width:0}
-small.help{display:block;color:#555;line-height:1.5;margin-top:4px}
-hr{border:0;border-top:1px solid #ccc;margin:12px 0}
-.status{font-size:12px;color:#444;padding:7px 10px;background:#eee;border-top:1px solid #bbb}
-@media(max-width:760px){main{grid-template-columns:1fr}.stage-wrap{min-height:500px}aside{border-left:0;border-top:1px solid #aaa}}
-@media print{
- body{background:#fff}header,.toolbar,aside,.status,.paper-label{display:none!important}
- main{display:block;min-height:0}.stage-wrap{padding:0;overflow:visible;background:#fff;min-height:0}
- .stage{margin:0;box-shadow:none;transform:none!important}
- .grid-bg{display:none!important}
- .cell.selected{outline:none}
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  color: #111;
+  background: #222;
+  font-size: 14px;
+  --accent: #0066cc;
+  --danger: #d93025;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden; /* 上下移動・スクロールを完全に防止 */
+  display: flex;
+  flex-direction: column;
+  background: #2b2b2b;
+}
+
+/* コンパクトな上部ヘッダー */
+header {
+  height: 44px;
+  background: #1a1a1a;
+  color: #fff;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-bottom: 1px solid #333;
+}
+header strong { font-size: 14px; letter-spacing: 0.02em; }
+.header-actions { display: flex; gap: 6px; }
+.header-actions button {
+  background: #333;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.header-actions button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ステージエリア（画面中央に固定表示） */
+.stage-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 12px;
+  touch-action: none;
+}
+.stage {
+  position: relative;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  transform-origin: center center;
+  flex-shrink: 0;
+}
+.paper-badge {
+  position: absolute;
+  top: -20px;
+  left: 0;
+  color: #bbb;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+/* 用紙ヘッダー */
+.sheet-header {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 10%;
+  border-bottom: 1px solid #111;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1.5mm 2.5mm;
+  background: #fff;
+  z-index: 5;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sheet-header .sheet-title input {
+  width: 42mm;
+  font-weight: 800;
+  font-size: 13px;
+}
+.sheet-header label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+.sheet-header input {
+  width: 26mm;
+  min-width: 0;
+  border: 1px solid #888;
+  padding: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  background: transparent;
+}
+
+#paper { position: absolute; inset: 0; overflow: hidden; }
+.grid-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(to right, #e0e0e0 1px, transparent 1px),
+                    linear-gradient(to bottom, #e0e0e0 1px, transparent 1px);
+  background-size: 10px 10px;
+}
+
+/* マス（セル）のスタイル */
+.cell {
+  position: absolute;
+  border: 1.5px solid #222;
+  background: #fff;
+  user-select: none;
+  touch-action: none;
+}
+.cell.parent { background: #fff; z-index: 1; }
+.cell.child { z-index: 20; border-color: #444; }
+.cell.selected {
+  outline: 2.5px solid var(--accent);
+  outline-offset: 1px;
+  z-index: 30 !important;
+}
+.cell-content {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  pointer-events: none;
+}
+.cell-content img { width: 100%; height: 100%; object-fit: contain; }
+
+/* スマホ指操作用の大きめ四隅ハンドル */
+.cell .handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background: var(--accent);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  z-index: 40;
+}
+.handle.nw { left: -9px; top: -9px; }
+.handle.ne { right: -9px; top: -9px; }
+.handle.sw { left: -9px; bottom: -9px; }
+.handle.se { right: -9px; bottom: -9px; }
+
+/* 下部固定メインアクションバー */
+.bottom-bar {
+  height: 58px;
+  background: #1a1a1a;
+  border-top: 1px solid #333;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 6px;
+  flex-shrink: 0;
+  z-index: 100;
+}
+.bottom-bar button {
+  flex: 1;
+  max-width: 110px;
+  height: 42px;
+  margin: 0 3px;
+  background: #2c2c2c;
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.bottom-bar button:active { background: #444; transform: scale(0.97); }
+.bottom-bar button.add-btn { background: var(--accent); border-color: var(--accent); }
+
+/* 選択マスに応じたコンテキスト・ポップアップメニュー */
+.context-popup {
+  position: fixed;
+  z-index: 500;
+  background: rgba(25, 25, 28, 0.96);
+  backdrop-filter: blur(8px);
+  border: 1px solid #555;
+  border-radius: 12px;
+  padding: 6px;
+  display: flex;
+  gap: 6px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.context-popup[hidden] { display: none; }
+.context-popup button {
+  background: #38383d;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.context-popup button:active { background: #505057; }
+.context-popup button.primary { background: var(--accent); }
+.context-popup button.danger { background: rgba(217, 48, 37, 0.25); color: #ff8a80; }
+.context-popup .badge {
+  font-size: 10px;
+  color: #aaa;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid #444;
+  margin-right: 2px;
+}
+
+/* ボトムシート（詳細編集・設定・ダイアログ共通） */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.sheet-backdrop[hidden] { display: none; }
+.bottom-sheet {
+  width: 100%;
+  max-width: 500px;
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+  padding: 16px 18px 24px;
+  max-height: 82dvh;
+  overflow-y: auto;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.3);
+}
+.sheet-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+}
+.sheet-header-bar h3 { margin: 0; font-size: 16px; }
+.sheet-close {
+  background: #eee;
+  border: none;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-weight: 700;
+  font-size: 13px;
+}
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 12px; font-weight: 700; color: #444; margin-bottom: 5px; }
+.field input[type=text], .field input[type=number], .field select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 15px;
+  background: #fafafa;
+}
+.field input[type=color] {
+  width: 100%;
+  height: 40px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 2px;
+  background: #fff;
+}
+.row { display: flex; gap: 10px; }
+.row > * { flex: 1; }
+.btn-full {
+  width: 100%;
+  padding: 12px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+.btn-group-row { display: flex; gap: 8px; }
+.btn-group-row button {
+  flex: 1;
+  padding: 10px;
+  background: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+/* 印刷用スタイル */
+@media print {
+  html, body { height: auto; overflow: visible; background: #fff; display: block; }
+  header, .bottom-bar, .context-popup, .sheet-backdrop, .paper-badge, .grid-bg, .handle { display: none !important; }
+  .stage-wrap { padding: 0; display: block; }
+  .stage { box-shadow: none; transform: none !important; margin: 0; }
+  .cell.selected { outline: none; }
 }
 </style>
 </head>
-<body class="phone-portrait">
-<header><strong>現物表示マス編集（試作）</strong><span>マスの配置・サイズ・構成を確認するための試作版</span></header>
-<div class="toolbar">
- <div class="group"><button id="phonePortrait">スマホ縦表示</button><button id="phoneLandscape">スマホ横表示</button><button id="fitDesktop">通常表示</button></div>
- <div class="group">
-  <button id="addParent">親マス追加</button>
-  
-  <button id="addChild">子マス追加</button>
-  <button id="addImage">画像挿入</button><button id="addTextImage">文字を画像として挿入</button><input id="imageFile" type="file" accept="image/*" hidden>
- </div>
- <div class="group">
-  <button id="duplicate">複製</button><button id="delete">削除</button>
- </div>
- <div class="group">
-  <label>用紙 <select id="paperSize"><option value="A4">A4</option><option value="B5">B5</option></select></label>
-  <label>向き <select id="orientation"><option value="landscape" selected>横</option><option value="portrait">縦</option></select></label>
- </div>
- <div class="group">
-  <label><input id="gridToggle" type="checkbox" checked> グリッド吸着</label>
-  <label><input id="gridView" type="checkbox"> 補助線表示</label>
- </div>
- <div class="group">
-  <label><input id="fitPrint" type="checkbox" checked> 1枚に収める</label>
-  <button id="print">印刷</button>
- </div>
-</div>
-<div id="textImageDialog" class="dialog-backdrop" hidden>
- <div class="dialog"><h3>文字画像の作成</h3>
-  <div class="field"><label for="textImageValue">表示する文字</label><input id="textImageValue" type="text" style="width:100%"></div>
-  <div class="field"><label for="textImageColor">文字色</label><input id="textImageColor" type="color" value="#111111"></div>
-  <div class="field"><label for="textImageSize">文字サイズ（px）</label><input id="textImageSize" type="number" min="8" max="120" value="22" style="width:100%"></div>
-  <div class="field"><label><input id="textImageClearBg" type="checkbox" checked> 背景色をクリア（透明）</label></div>
-  <div class="field" id="textImageBgField" hidden><label for="textImageBg">背景色</label><input id="textImageBg" type="color" value="#ffffff"></div>
-  <div class="dialog-actions"><button id="cancelTextImage">キャンセル</button><button id="confirmTextImage">挿入</button></div>
- </div>
-</div>
-<div id="parentFormatDialog" class="dialog-backdrop" hidden>
- <div class="dialog"><h3>親マスの部品構成</h3><label>フォーマット <select id="parentFormat"><option value="single">部品単品</option><option value="assembly">部品＋ボルト・ナット（構成品）</option></select></label><div class="dialog-actions"><button id="cancelParent">キャンセル</button><button id="confirmParent">追加</button></div></div>
-</div>
-<main>
- <section class="stage-wrap" id="stageWrap">
+<body>
+
+<header>
+  <strong>現物表示マス編集</strong>
+  <div class="header-actions">
+    <button id="btnSettings">用紙・設定</button>
+    <button id="btnPrint" class="primary">印刷</button>
+  </div>
+</header>
+
+<section class="stage-wrap" id="stageWrap">
   <div class="stage" id="stage">
-   <div class="paper-label" id="paperLabel">A4・縦</div>
-   <div id="paper">
-    <div class="sheet-header" id="sheetHeader">
-     <label class="sheet-title"><input id="sheetTitle" type="text" value="車型別部品表示票" aria-label="表示票タイトル"></label>
-     <label>工程名 <input id="processName" type="text" placeholder="工程名"></label>
-     <label>E/G型式 <input id="engineType" type="text" placeholder="E/G型式"></label>
-     <label>T/T <input id="ttValue" type="text" placeholder="T/T"></label>
-     <label>作成日 <input id="createdDate" type="date"></label>
+    <div class="paper-badge" id="paperLabel">A4・横</div>
+    <div id="paper">
+      <div class="sheet-header" id="sheetHeader">
+        <label class="sheet-title"><input id="sheetTitle" type="text" value="車型別部品表示票"></label>
+        <label>工程名 <input id="processName" type="text" placeholder="工程名"></label>
+        <label>E/G型式 <input id="engineType" type="text" placeholder="E/G型式"></label>
+        <label>T/T <input id="ttValue" type="text" placeholder="T/T"></label>
+        <label>作成日 <input id="createdDate" type="date"></label>
+      </div>
+      <div class="grid-bg" id="gridBg" hidden></div>
     </div>
-    <div class="grid-bg" id="gridBg" hidden></div>
-   </div>
   </div>
- </section>
- <aside>
-  <h3>選択中のマス</h3>
-  <div id="empty">マスを選択してください。</div>
-  <div id="properties" hidden>
-   <div class="field"><label>種類</label><input id="kindLabel" type="text" readonly></div>
-   <div class="row">
-    <div class="field"><label>幅</label><input id="w" type="number" min="5"></div>
-    <div class="field"><label>高さ</label><input id="h" type="number" min="5"></div>
-   </div>
-   <div class="field"><label>表示文字</label><input id="cellText" type="text" value=""></div>
-   <div class="field"><label>背景色</label><input id="bg" type="color" value="#ffffff"></div>
-   <div class="field"><label>文字色</label><input id="textColor" type="color" value="#111111"></div>
-   <div class="field" id="imageRotateControls" hidden><label>画像の回転</label><div class="row"><button type="button" id="rotateLeft">左へ90°</button><button type="button" id="rotateRight">右へ90°</button></div></div>
-   <div class="field"><label>画像・文字画像のサイズ調整（幅／高さ）</label><small class="help">幅・高さで調整。画像は枠内に収めて表示します。</small></div>
-   <div class="field"><label>文字サイズ（px）</label><input id="fontSize" type="number" min="8" max="120" value="22"></div>
-   <div class="field"><label><input id="lockRatio" type="checkbox"> 縦横比を固定（写真用）</label></div>
-   <small class="help">幅・高さはmm相当の編集単位です。数値を入力すると即時反映します。</small>
+</section>
+
+<!-- 選択マスの種類に応じて切り替わるコンテキスト・ポップアップ -->
+<div id="contextPopup" class="context-popup" hidden></div>
+
+<!-- 下部固定ツールバー -->
+<nav class="bottom-bar">
+  <button id="btnAddParent" class="add-btn">＋ 親マス</button>
+  <button id="btnAddImage">＋ 画像</button>
+  <button id="btnAddTextImg">＋ 文字画像</button>
+  <input id="imageFile" type="file" accept="image/*" hidden>
+</nav>
+
+<!-- 1. 親マス構成選択シート -->
+<div id="parentFormatSheet" class="sheet-backdrop" hidden>
+  <div class="bottom-sheet">
+    <div class="sheet-header-bar">
+      <h3>親マスの部品構成を選択</h3>
+      <button class="sheet-close" data-close="parentFormatSheet">閉じる</button>
+    </div>
+    <div class="field">
+      <label>構成テンプレート</label>
+      <select id="parentFormat">
+        <option value="single">部品単品（子マス2枠）</option>
+        <option value="assembly">部品＋ボルト・ナット（構成品4枠）</option>
+      </select>
+    </div>
+    <button id="confirmParent" class="btn-full">この構成で親マスを追加</button>
   </div>
-  <hr>
-  <h3>操作</h3>
-  <small class="help">・マスをドラッグして移動<br>・選択中のマスの四隅／辺をドラッグしてサイズ変更<br>・親マスを選択して「子マス追加」<br>・子マスは親マスの内側で移動・サイズ変更<br>・親マスを移動すると子マスも一緒に移動</small>
- </aside>
-</main>
-<div class="status" id="status">準備完了。親マスを追加し、必要な子マスを配置してください。</div>
+</div>
+
+<!-- 2. 選択マスの詳細編集ボトムシート -->
+<div id="editCellSheet" class="sheet-backdrop" hidden>
+  <div class="bottom-sheet">
+    <div class="sheet-header-bar">
+      <h3 id="editSheetTitle">マスの編集</h3>
+      <button class="sheet-close" data-close="editCellSheet">完了</button>
+    </div>
+    <div class="field" id="fieldTextWrap">
+      <label>表示文字</label>
+      <input id="cellText" type="text" placeholder="文字を入力">
+    </div>
+    <div class="row">
+      <div class="field"><label>幅 (mm)</label><input id="w" type="number" min="5"></div>
+      <div class="field"><label>高さ (mm)</label><input id="h" type="number" min="5"></div>
+    </div>
+    <div class="row" id="fieldColorWrap">
+      <div class="field"><label>背景色</label><input id="bg" type="color" value="#ffffff"></div>
+      <div class="field"><label>文字色</label><input id="textColor" type="color" value="#111111"></div>
+    </div>
+    <div class="field" id="fieldFontSizeWrap">
+      <label>文字サイズ (px)</label>
+      <input id="fontSize" type="number" min="8" max="120" value="22">
+    </div>
+    <div class="field" id="imageRotateControls" hidden>
+      <label>画像の回転</label>
+      <div class="btn-group-row">
+        <button type="button" id="rotateLeft">↺ 左へ90°</button>
+        <button type="button" id="rotateRight">↻ 右へ90°</button>
+      </div>
+    </div>
+    <div class="field">
+      <label><input id="lockRatio" type="checkbox"> リサイズ時に縦横比を固定</label>
+    </div>
+  </div>
+</div>
+
+<!-- 3. 文字画像作成シート -->
+<div id="textImageSheet" class="sheet-backdrop" hidden>
+  <div class="bottom-sheet">
+    <div class="sheet-header-bar">
+      <h3>文字画像の作成</h3>
+      <button class="sheet-close" data-close="textImageSheet">閉じる</button>
+    </div>
+    <div class="field"><label>表示する文字（□や○も図形化）</label><input id="textImageValue" type="text" placeholder="例：A1 □○"></div>
+    <div class="row">
+      <div class="field"><label>文字色</label><input id="textImageColor" type="color" value="#111111"></div>
+      <div class="field"><label>文字サイズ (px)</label><input id="textImageSize" type="number" min="8" max="120" value="28"></div>
+    </div>
+    <div class="field"><label><input id="textImageClearBg" type="checkbox" checked> 背景を透明にする</label></div>
+    <div class="field" id="textImageBgField" hidden><label>背景色</label><input id="textImageBg" type="color" value="#ffffff"></div>
+    <button id="confirmTextImage" class="btn-full">文字画像を挿入</button>
+  </div>
+</div>
+
+<!-- 4. 用紙・グリッド設定シート -->
+<div id="settingsSheet" class="sheet-backdrop" hidden>
+  <div class="bottom-sheet">
+    <div class="sheet-header-bar">
+      <h3>用紙・グリッド設定</h3>
+      <button class="sheet-close" data-close="settingsSheet">閉じる</button>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>用紙サイズ</label>
+        <select id="paperSize"><option value="A4">A4</option><option value="B5">B5</option></select>
+      </div>
+      <div class="field">
+        <label>向き</label>
+        <select id="orientation"><option value="landscape" selected>横</option><option value="portrait">縦</option></select>
+      </div>
+    </div>
+    <div class="field"><label><input id="gridToggle" type="checkbox" checked> 5mm単位のグリッド吸着</label></div>
+    <div class="field"><label><input id="gridView" type="checkbox"> 補助線を表示する</label></div>
+    <div class="field"><label><input id="fitPrint" type="checkbox" checked> 印刷時に1枚に収める</label></div>
+  </div>
+</div>
+
 <script>
 (() => {
- const $=id=>document.getElementById(id);
- const paper=$('paper'),stage=$('stage'),gridBg=$('gridBg');
- const mm=3.78; // CSS px per mm at 96dpi
- const sizes={A4:[210,297],B5:[182,257]};
- let cells=[],selected=null,nextId=1,drag=null;
- const fields=['w','h','bg','fontSize','lockRatio','cellText','textColor'];
- const get=id=>$(id).value;
- const set=(id,v)=>$(id).value=v;
- const selectedCell=()=>cells.find(c=>c.id===selected);
- function dims(){let [w,h]=sizes[get('paperSize')];if(get('orientation')==='landscape')[w,h]=[h,w];return [w,h]}
- function boardBounds(){const [pw,ph]=dims();return {x:0,y:ph*0.10,w:pw,h:ph*0.90}}
- function parentDefaultSize(){return {w:90,h:85}}
- function paperSetup(){let [w,h]=dims();stage.style.width=(w*mm)+'px';stage.style.height=(h*mm)+'px';$('paperLabel').textContent=get('paperSize')+'・'+(get('orientation')==='portrait'?'縦':'横')+'（'+w+'×'+h+'mm）';$('sheetHeader').style.height='10%';render();fitStage()}
- function fitStage(){let wrap=$('stageWrap'),scale=Math.min(1,(wrap.clientWidth-50)/stage.offsetWidth);stage.style.transform='scale('+scale+')';stage.style.marginBottom=(stage.offsetHeight*(scale-1))+'px'}
- function snap(v){return $('gridToggle').checked?Math.round(v/5)*5:v}
- function addCell(kind,parentId=null){
-  const board=boardBounds(),base=parentDefaultSize();
-  const c={id:nextId++,kind,parentId,x:kind==='child'?10:15,y:kind==='child'?10:board.y+10,w:kind==='child'?Math.min(20,base.w-5):90,h:kind==='child'?15:85,text:kind==='parent'?'親マス':'子マス',type:'text',bg:'#ffffff',textColor:'#111111',fontSize:22};
-  if(kind==='parent'){const n=cells.filter(x=>x.kind==='parent').length;const cols=Math.max(1,Math.floor((board.w-10)/90));c.x=board.x+5+(n%cols)*90;c.y=board.y+5+Math.floor(n/cols)*85;c.w=90;c.h=85;}
-  if(parentId){const p=cells.find(x=>x.id===parentId);if(!p)return;c.x=Math.min(10,p.w-10);c.y=Math.min(10,p.h-10)}
-  cells.push(c);selected=c.id;render();syncPanel();$('status').textContent=kind==='child'?'子マスを追加しました。':'親マスを追加しました。';
-  return c;
- }
- function addParentTemplate(format){
-  const parent=addCell('parent');if(!parent)return;
-  parent.format=format;
-  const specs=format==='assembly'?[{x:0,w:20},{x:20,w:20},{x:40,w:30},{x:70,w:20}]:[{x:0,w:20},{x:20,w:20}];
-  specs.forEach(spec=>cells.push({id:nextId++,kind:'child',parentId:parent.id,x:spec.x,y:0,w:spec.w,h:15,text:'子マス',type:'text',bg:'#ffffff',textColor:'#111111',fontSize:22}));
-  selected=parent.id;render();syncPanel();
- }
- function descendants(id){return cells.filter(c=>c.parentId===id)}
-  function makeTextImage(text,color,size,clearBg=true,bg='#ffffff'){
-   const measure=document.createElement('canvas').getContext('2d');measure.font=`bold ${size}px sans-serif`;
-   const width=Math.max(20,Math.ceil(measure.measureText(text).width+24)),height=Math.max(30,Math.ceil(size*1.8));
-   const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d');
-   // 透明指定時は背景を一切描画しない。Canvasのリサイズ後に描画状態を設定する。
-   if(!clearBg){ctx.fillStyle=bg;ctx.fillRect(0,0,width,height)}
-   ctx.font=`bold ${size}px sans-serif`;ctx.fillStyle=color;ctx.textBaseline='middle';
-   let x=12;for(const ch of text){const cw=ctx.measureText(ch).width;
-    if(ch==='□'){const side=size*.68;ctx.fillRect(x+(cw-side)/2,(height-side)/2,side,side)}
-    else if(ch==='○'){const r=size*.36;ctx.beginPath();ctx.arc(x+cw/2,height/2,r,0,Math.PI*2);ctx.fill()}
-    else{ctx.fillText(ch,x,height/2)}
-    x+=cw;
-   }
-   return canvas.toDataURL('image/png');
-  }
- function render(){
-  paper.querySelectorAll('.cell').forEach(e=>e.remove());
-  const sorted=[...cells].sort((a,b)=>(a.kind==='child'?1:0)-(b.kind==='child'?1:0));
-  for(const c of sorted){
-   const el=document.createElement('div');el.className='cell '+(c.kind==='child'?'child':'parent')+(c.id===selected?' selected':'');el.dataset.id=c.id;
-   const parent=c.parentId?cells.find(p=>p.id===c.parentId):null;
-   let x=c.x,y=c.y;
-   if(parent){x+=parent.x;y+=parent.y}
-   el.style.left=x*mm+'px';el.style.top=y*mm+'px';el.style.width=c.w*mm+'px';el.style.height=c.h*mm+'px';el.style.background=c.bg;el.style.zIndex=c.kind==='child'?20:1;
-   const content=document.createElement('div');content.className='cell-content';content.style.fontSize=c.fontSize+'px';content.style.color=c.textColor||'#111111';if(c.contentData){const img=document.createElement('img');img.src=c.contentData;img.alt=c.text||'挿入画像';const rot=((c.rotation||0)%360+360)%360;if(rot%180){img.style.position='absolute';img.style.left='50%';img.style.top='50%';img.style.width=(c.h/c.w*100)+'%';img.style.height=(c.w/c.h*100)+'%';img.style.transform='translate(-50%,-50%) rotate('+rot+'deg)';img.style.objectFit='contain'}else if(rot){img.style.transform='rotate('+rot+'deg)'}content.style.position='relative';content.appendChild(img)}else{content.textContent=c.text||(c.kind==='child'?'子マス':'親マス')}el.appendChild(content);
-   if(c.id===selected){
-    ['nw','n','ne','e','se','s','sw','w'].forEach(pos=>{const h=document.createElement('i');h.className='handle '+pos;h.dataset.handle=pos;el.appendChild(h)});
-   }
-   el.addEventListener('pointerdown',pointerDown);el.addEventListener('click',e=>{e.stopPropagation();selected=c.id;render();syncPanel()});
-   paper.appendChild(el);
-  }
-  gridBg.hidden=!$('gridView').checked;
- }
- function syncPanel(){
-  const c=selectedCell();$('empty').hidden=!!c;$('properties').hidden=!c;
-  if(!c){$('imageRotateControls').hidden=true;return;}
-  $('imageRotateControls').hidden=!(c.kind==='image'&&!!c.contentData);
-  set('kindLabel',c.kind==='parent'?'親マス（'+(c.format==='assembly'?'部品＋ボルト・ナット':'部品単品')+'）':c.kind==='child'?'子マス':'画像・文字画像');set('w',Math.round(c.w));set('h',Math.round(c.h));set('bg',c.bg==='transparent'?'#ffffff':c.bg);set('fontSize',c.fontSize);set('cellText',c.text||'');set('textColor',c.textColor||'#111111');
- }
- function updateFromPanel(e){
-  const c=selectedCell();if(!c)return;
-  const minSize=c.kind==='child'?5:10;c.w=Math.max(minSize,+get('w'));c.h=Math.max(minSize,+get('h'));if(c.bg!=='transparent'||(e&&e.target&&e.target.id==='bg'))c.bg=get('bg');c.fontSize=+get('fontSize')||16;c.text=get('cellText');c.textColor=get('textColor');
-  if(c.parentId){const p=cells.find(p=>p.id===c.parentId);c.x=Math.max(0,Math.min(c.x,p.w-c.w));c.y=Math.max(0,Math.min(c.y,p.h-c.h))}
-  render();
- }
- function pointerDown(e){
-  const id=+e.currentTarget.dataset.id,c=cells.find(c=>c.id===id);selected=id;syncPanel();render();
-  const handle=e.target.dataset.handle||null;
-  drag={id,handle,startX:e.clientX,startY:e.clientY,orig:{x:c.x,y:c.y,w:c.w,h:c.h},parent:c.parentId?cells.find(p=>p.id===c.parentId):null};
-  e.preventDefault();e.stopPropagation();
-  window.addEventListener('pointermove',pointerMove);window.addEventListener('pointerup',pointerUp,{once:true});
- }
- function pointerMove(e){
-  if(!drag)return;const c=cells.find(c=>c.id===drag.id);let dx=(e.clientX-drag.startX)/mm,dy=(e.clientY-drag.startY)/mm;const o=drag.orig;
-  if(!drag.handle){c.x=snap(o.x+dx);c.y=snap(o.y+dy)}
-  else{
-   let x=o.x,y=o.y,w=o.w,h=o.h;const k=drag.handle;
-   const minSize=c.kind==='child'?5:10;if(k.includes('e'))w=Math.max(minSize,o.w+dx);if(k.includes('s'))h=Math.max(minSize,o.h+dy);
-   if(k.includes('w')){w=Math.max(minSize,o.w-dx);x=o.x+(o.w-w)}
-   if(k.includes('n')){h=Math.max(minSize,o.h-dy);y=o.y+(o.h-h)}
-   if($('lockRatio').checked){const ratio=o.w/o.h;if(Math.abs(dx)>Math.abs(dy))h=w/ratio;else w=h*ratio}
-   c.x=snap(x);c.y=snap(y);c.w=snap(w);c.h=snap(h);
-  }
-  if(drag.parent){c.x=Math.max(0,Math.min(c.x,drag.parent.w-c.w));c.y=Math.max(0,Math.min(c.y,drag.parent.h-c.h))}
-  if(c.kind==='parent'){
-   const ddx=c.x-o.x,ddy=c.y-o.y;
-   if(!drag.handle&& (ddx||ddy)){descendants(c.id).forEach(ch=>{ch._renderX=ch.x;ch._renderY=ch.y})}
-  }
-  render();syncPanel();
- }
- function pointerUp(){
-  // 子マスの座標は親マス基準なので、親を動かしても子の座標自体は変更しない。
-  drag=null;window.removeEventListener('pointermove',pointerMove);render();syncPanel();
- }
- $('addParent').onclick=()=>{$('parentFormatDialog').hidden=false};
- $('cancelParent').onclick=()=>{$('parentFormatDialog').hidden=true};
- $('confirmParent').onclick=()=>{const fmt=get('parentFormat');$('parentFormatDialog').hidden=true;addParentTemplate(fmt);};
- 
- $('addChild').onclick=()=>{const c=selectedCell();if(!c||c.kind!=='parent'){alert('親マスを選択してから子マスを追加してください。');return}addCell('child',c.id)};
- $('duplicate').onclick=()=>{const c=selectedCell();if(!c)return;const copy={...c,id:nextId++,x:c.x+10,y:c.y+10};cells.push(copy);selected=copy.id;render();syncPanel()};
- $('delete').onclick=()=>{const c=selectedCell();if(!c)return;cells=cells.filter(x=>x.id!==c.id&&x.parentId!==c.id);selected=null;render();syncPanel()};
- fields.forEach(id=>$(id).addEventListener('input',updateFromPanel));
+  const $ = id => document.getElementById(id);
+  const paper = $('paper'), stage = $('stage'), gridBg = $('gridBg'), popup = $('contextPopup');
+  const mm = 3.78;
+  const sizes = { A4: [210, 297], B5: [182, 257] };
+  let cells = [], selected = null, nextId = 1, drag = null;
 
- $('addImage').onclick=()=>{$('imageFile').click()};
- function rotateSelectedImage(delta){const c=selectedCell();if(!c||c.kind!=='image'||!c.contentData)return;c.rotation=((c.rotation||0)+delta+360)%360;render();syncPanel();}
- $('rotateLeft').onclick=()=>rotateSelectedImage(-90);$('rotateRight').onclick=()=>rotateSelectedImage(90);
- $('imageFile').onchange=e=>{const file=e.target.files&&e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{const b=boardBounds();const c={id:nextId++,kind:'image',parentId:null,x:b.x+10,y:b.y+10,w:90,h:85,text:file.name,contentData:reader.result,rotation:0,bg:'#ffffff',textColor:'#111111',fontSize:22};cells.push(c);selected=c.id;render();syncPanel();};reader.readAsDataURL(file);e.target.value='';};
- $('addTextImage').onclick=()=>{$('textImageDialog').hidden=false;$('textImageValue').focus();};
- $('textImageClearBg').onchange=()=>{$('textImageBgField').hidden=$('textImageClearBg').checked;};
- $('cancelTextImage').onclick=()=>{$('textImageDialog').hidden=true;};
- $('confirmTextImage').onclick=()=>{
-  const value=get('textImageValue').trim();if(!value){alert('文字を入力してください。');return;}
-  const color=get('textImageColor'),size=Math.max(8,Math.min(120,Number(get('textImageSize'))||22)),clearBg=$('textImageClearBg').checked;
-  const data=makeTextImage(value,color,size,clearBg,get('textImageBg'));
-  const measure=document.createElement('canvas').getContext('2d');measure.font=`bold ${size}px sans-serif`;
-  const imageW=Math.max(20,Math.ceil(measure.measureText(value).width+24)),imageH=Math.max(30,Math.ceil(size*1.8));
-  const b=boardBounds(),c={id:nextId++,kind:'image',parentId:null,x:b.x+10,y:b.y+10,w:Math.max(30,imageW/mm),h:Math.max(15,imageH/mm),text:value,contentData:data,rotation:0,bg:clearBg?'transparent':'#ffffff',textColor:color,fontSize:size};
-  cells.push(c);selected=c.id;$('textImageDialog').hidden=true;render();syncPanel();
- };
- $('paperSize').onchange=paperSetup;$('orientation').onchange=paperSetup;
- $('gridToggle').onchange=()=>{$('status').textContent=$('gridToggle').checked?'5mm単位の吸着を有効にしました。':'自由配置にしました。'};
- $('gridView').onchange=()=>{gridBg.hidden=!$('gridView').checked};
- $('phonePortrait').onclick=()=>{document.body.classList.remove('phone-landscape');document.body.classList.add('phone-portrait');fitStage()};
- $('phoneLandscape').onclick=()=>{document.body.classList.remove('phone-portrait');document.body.classList.add('phone-landscape');fitStage()};
- $('fitDesktop').onclick=()=>{document.body.classList.remove('phone-portrait','phone-landscape');fitStage()};
- $('print').onclick=()=>{
-  const [pw,ph]=dims(),contentBounds=cells.reduce((b,c)=>{let x=c.x,y=c.y;if(c.parentId){const p=cells.find(p=>p.id===c.parentId);if(p){x+=p.x;y+=p.y}}return {x:Math.min(b.x,x),y:Math.min(b.y,y),r:Math.max(b.r,x+c.w),b:Math.max(b.b,y+c.h)}},{x:0,y:0,r:0,b:0});
-  const scale=Math.min((pw-16)/(contentBounds.r-contentBounds.x||1),(ph-16)/(contentBounds.b-contentBounds.y||1),1);
-  if($('fitPrint').checked){stage.style.width=pw*mm+'px';stage.style.height=ph*mm+'px';paper.style.transformOrigin='top left';paper.style.transform='scale('+scale+')';paper.style.width=pw*mm+'px';paper.style.height=ph*mm+'px';}
-  window.print();setTimeout(()=>{paper.style.transform='';paper.style.width='';paper.style.height='';},500);
- };
- paper.addEventListener('pointerdown',e=>{if(e.target===paper||e.target===gridBg){selected=null;render();syncPanel()}});
- window.addEventListener('resize',fitStage);
- if(window.innerWidth<760){document.body.classList.add('phone-portrait')}
- if(!$('createdDate').value){const today=new Date();$('createdDate').value=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');}
- paperSetup();
- // 初期状態は空。表紙入力のみ表示する。
- render();syncPanel();
+  const get = id => $(id).value;
+  const set = (id, v) => $(id).value = v;
+  const selectedCell = () => cells.find(c => c.id === selected);
+
+  function dims() {
+    let [w, h] = sizes[get('paperSize')];
+    if (get('orientation') === 'landscape') [w, h] = [h, w];
+    return [w, h];
+  }
+  function boardBounds() {
+    const [pw, ph] = dims();
+    return { x: 0, y: ph * 0.10, w: pw, h: ph * 0.90 };
+  }
+
+  /* 画面サイズにぴったり収まるよう自動スケーリング（上下スクロール不要） */
+  function fitStage() {
+    const wrap = $('stageWrap');
+    const availW = wrap.clientWidth - 24;
+    const availH = wrap.clientHeight - 32;
+    const scale = Math.min(availW / stage.offsetWidth, availH / stage.offsetHeight, 1.5);
+    stage.style.transform = `scale(${scale})`;
+    positionPopup();
+  }
+
+  function paperSetup() {
+    const [w, h] = dims();
+    stage.style.width = (w * mm) + 'px';
+    stage.style.height = (h * mm) + 'px';
+    $('paperLabel').textContent = `${get('paperSize')}・${get('orientation') === 'portrait' ? '縦' : '横'}（${w}×${h}mm）`;
+    render();
+    fitStage();
+  }
+
+  function snap(v) {
+    return $('gridToggle').checked ? Math.round(v / 5) * 5 : v;
+  }
+
+  function addCell(kind, parentId = null) {
+    const board = boardBounds();
+    const c = {
+      id: nextId++,
+      kind,
+      parentId,
+      x: kind === 'child' ? 5 : 10,
+      y: kind === 'child' ? 15 : board.y + 5,
+      w: kind === 'child' ? 25 : 90,
+      h: kind === 'child' ? 15 : 85,
+      text: kind === 'parent' ? '親マス' : '子マス',
+      bg: '#ffffff',
+      textColor: '#111111',
+      fontSize: 20
+    };
+    if (kind === 'parent') {
+      const n = cells.filter(x => x.kind === 'parent').length;
+      const cols = Math.max(1, Math.floor((board.w - 10) / 90));
+      c.x = board.x + 5 + (n % cols) * 90;
+      c.y = board.y + 5 + Math.floor(n / cols) * 85;
+    }
+    if (parentId) {
+      const p = cells.find(x => x.id === parentId);
+      if (!p) return;
+      c.x = Math.min(5, Math.max(0, p.w - c.w));
+      c.y = Math.min(20, Math.max(0, p.h - c.h));
+    }
+    cells.push(c);
+    selected = c.id;
+    render();
+    return c;
+  }
+
+  function addParentTemplate(format) {
+    const parent = addCell('parent');
+    if (!parent) return;
+    parent.format = format;
+    const specs = format === 'assembly'
+      ? [{ x: 0, w: 20 }, { x: 20, w: 20 }, { x: 40, w: 30 }, { x: 70, w: 20 }]
+      : [{ x: 0, w: 20 }, { x: 20, w: 20 }];
+    specs.forEach(spec => {
+      cells.push({
+        id: nextId++,
+        kind: 'child',
+        parentId: parent.id,
+        x: spec.x,
+        y: 0,
+        w: spec.w,
+        h: 15,
+        text: '子マス',
+        bg: '#ffffff',
+        textColor: '#111111',
+        fontSize: 18
+      });
+    });
+    selected = parent.id;
+    render();
+  }
+
+  /* 選択したマスの種類に応じた操作ポップアップを構築＆配置 */
+  function updatePopup() {
+    const c = selectedCell();
+    if (!c || drag) {
+      popup.hidden = true;
+      return;
+    }
+
+    let html = '';
+    if (c.kind === 'parent') {
+      html = `
+        <span class="badge">親マス</span>
+        <button class="primary" data-act="addChild">＋子マス</button>
+        <button data-act="edit">編集</button>
+        <button data-act="dup">複製</button>
+        <button class="danger" data-act="del">削除</button>
+      `;
+    } else if (c.kind === 'child') {
+      html = `
+        <span class="badge">子マス</span>
+        <button class="primary" data-act="edit">文字・編集</button>
+        <button data-act="dup">複製</button>
+        <button class="danger" data-act="del">削除</button>
+      `;
+    } else if (c.kind === 'image') {
+      html = `
+        <span class="badge">画像</span>
+        <button data-act="rotR">↻ 回転</button>
+        <button class="primary" data-act="edit">サイズ・編集</button>
+        <button data-act="dup">複製</button>
+        <button class="danger" data-act="del">削除</button>
+      `;
+    }
+    popup.innerHTML = html;
+    popup.hidden = false;
+    positionPopup();
+  }
+
+  function positionPopup() {
+    const c = selectedCell();
+    if (!c || popup.hidden) return;
+    const cellEl = paper.querySelector(`.cell[data-id="${c.id}"]`);
+    if (!cellEl) return;
+
+    const rect = cellEl.getBoundingClientRect();
+    const popRect = popup.getBoundingClientRect();
+    const margin = 10;
+
+    // 画面横幅からはみ出さないよう中央揃え＋クランプ
+    let left = rect.left + rect.width / 2 - popRect.width / 2;
+    left = Math.max(8, Math.min(window.innerWidth - popRect.width - 8, left));
+
+    // 基本はマスの上側に表示。上にスペースがなければマスの下側に表示
+    let top = rect.top - popRect.height - margin;
+    if (top < 52) {
+      top = rect.bottom + margin;
+    }
+    // 下部バーとも被る場合は画面上部（ヘッダー直下）に固定表示
+    if (top + popRect.height > window.innerHeight - 66) {
+      top = 52;
+    }
+
+    popup.style.left = `${left}px`;
+    popup.style.top = `${top}px`;
+  }
+
+  /* ポップアップ内のボタンアクション */
+  popup.addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    const c = selectedCell();
+    if (!c) return;
+
+    if (act === 'addChild') {
+      addCell('child', c.id);
+    } else if (act === 'edit') {
+      openEditSheet(c);
+    } else if (act === 'rotR') {
+      c.rotation = ((c.rotation || 0) + 90) % 360;
+      render();
+    } else if (act === 'dup') {
+      const copy = { ...c, id: nextId++, x: c.x + 8, y: c.y + 8 };
+      cells.push(copy);
+      // 親マス複製時は子マスも一緒に複製
+      if (c.kind === 'parent') {
+        cells.filter(ch => ch.parentId === c.id).forEach(ch => {
+          cells.push({ ...ch, id: nextId++, parentId: copy.id });
+        });
+      }
+      selected = copy.id;
+      render();
+    } else if (act === 'del') {
+      cells = cells.filter(x => x.id !== c.id && x.parentId !== c.id);
+      selected = null;
+      render();
+    }
+  });
+
+  function openEditSheet(c) {
+    const isImg = c.kind === 'image';
+    $('editSheetTitle').textContent = c.kind === 'parent' ? '親マスの編集' : c.kind === 'child' ? '子マスの編集' : '画像の編集';
+    $('fieldTextWrap').hidden = isImg;
+    $('fieldFontSizeWrap').hidden = isImg;
+    $('imageRotateControls').hidden = !isImg;
+
+    set('w', Math.round(c.w));
+    set('h', Math.round(c.h));
+    set('bg', c.bg === 'transparent' ? '#ffffff' : c.bg);
+    set('fontSize', c.fontSize);
+    set('cellText', c.text || '');
+    set('textColor', c.textColor || '#111111');
+    $('editCellSheet').hidden = false;
+  }
+
+  function updateFromSheet(e) {
+    const c = selectedCell();
+    if (!c) return;
+    const minSize = c.kind === 'child' ? 5 : 10;
+    c.w = Math.max(minSize, +get('w') || minSize);
+    c.h = Math.max(minSize, +get('h') || minSize);
+    if (c.bg !== 'transparent' || (e && e.target && e.target.id === 'bg')) {
+      c.bg = get('bg');
+    }
+    c.fontSize = +get('fontSize') || 18;
+    c.text = get('cellText');
+    c.textColor = get('textColor');
+    if (c.parentId) {
+      const p = cells.find(p => p.id === c.parentId);
+      if (p) {
+        c.x = Math.max(0, Math.min(c.x, p.w - c.w));
+        c.y = Math.max(0, Math.min(c.y, p.h - c.h));
+      }
+    }
+    render();
+  }
+
+  ['w', 'h', 'bg', 'fontSize', 'cellText', 'textColor'].forEach(id => {
+    $(id).addEventListener('input', updateFromSheet);
+  });
+
+  function render() {
+    paper.querySelectorAll('.cell').forEach(e => e.remove());
+    const sorted = [...cells].sort((a, b) => (a.kind === 'child' ? 1 : 0) - (b.kind === 'child' ? 1 : 0));
+
+    for (const c of sorted) {
+      const el = document.createElement('div');
+      el.className = `cell ${c.kind === 'child' ? 'child' : 'parent'}${c.id === selected ? ' selected' : ''}`;
+      el.dataset.id = c.id;
+
+      const parent = c.parentId ? cells.find(p => p.id === c.parentId) : null;
+      let x = c.x, y = c.y;
+      if (parent) { x += parent.x; y += parent.y; }
+
+      el.style.left = (x * mm) + 'px';
+      el.style.top = (y * mm) + 'px';
+      el.style.width = (c.w * mm) + 'px';
+      el.style.height = (c.h * mm) + 'px';
+      el.style.background = c.bg;
+
+      const content = document.createElement('div');
+      content.className = 'cell-content';
+      content.style.fontSize = c.fontSize + 'px';
+      content.style.color = c.textColor || '#111111';
+
+      if (c.contentData) {
+        const img = document.createElement('img');
+        img.src = c.contentData;
+        const rot = ((c.rotation || 0) % 360 + 360) % 360;
+        if (rot % 180) {
+          img.style.position = 'absolute';
+          img.style.left = '50%';
+          img.style.top = '50%';
+          img.style.width = (c.h / c.w * 100) + '%';
+          img.style.height = (c.w / c.h * 100) + '%';
+          img.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
+        } else if (rot) {
+          img.style.transform = `rotate(${rot}deg)`;
+        }
+        content.style.position = 'relative';
+        content.appendChild(img);
+      } else {
+        content.textContent = c.text || '';
+      }
+      el.appendChild(content);
+
+      if (c.id === selected) {
+        ['nw', 'ne', 'sw', 'se'].forEach(pos => {
+          const h = document.createElement('i');
+          h.className = 'handle ' + pos;
+          h.dataset.handle = pos;
+          el.appendChild(h);
+        });
+      }
+
+      el.addEventListener('pointerdown', pointerDown);
+      paper.appendChild(el);
+    }
+
+    gridBg.hidden = !$('gridView').checked;
+    updatePopup();
+  }
+
+  function pointerDown(e) {
+    const id = +e.currentTarget.dataset.id;
+    const c = cells.find(c => c.id === id);
+    selected = id;
+    const handle = e.target.dataset.handle || null;
+
+    // 現在のステージ拡大率を取得してドラッグ移動量を正確に補正
+    const transform = window.getComputedStyle(stage).transform;
+    const currentScale = transform !== 'none' ? parseFloat(transform.split(',')[0].replace('matrix(', '')) : 1;
+
+    drag = {
+      id,
+      handle,
+      scale: currentScale,
+      startX: e.clientX,
+      startY: e.clientY,
+      orig: { x: c.x, y: c.y, w: c.w, h: c.h },
+      parent: c.parentId ? cells.find(p => p.id === c.parentId) : null
+    };
+
+    render();
+    e.preventDefault();
+    e.stopPropagation();
+    window.addEventListener('pointermove', pointerMove);
+    window.addEventListener('pointerup', pointerUp, { once: true });
+  }
+
+  function pointerMove(e) {
+    if (!drag) return;
+    const c = cells.find(c => c.id === drag.id);
+    const dx = (e.clientX - drag.startX) / (mm * drag.scale);
+    const dy = (e.clientY - drag.startY) / (mm * drag.scale);
+    const o = drag.orig;
+
+    if (!drag.handle) {
+      c.x = snap(o.x + dx);
+      c.y = snap(o.y + dy);
+    } else {
+      let x = o.x, y = o.y, w = o.w, h = o.h;
+      const k = drag.handle;
+      const minSize = c.kind === 'child' ? 5 : 10;
+      if (k.includes('e')) w = Math.max(minSize, o.w + dx);
+      if (k.includes('s')) h = Math.max(minSize, o.h + dy);
+      if (k.includes('w')) { w = Math.max(minSize, o.w - dx); x = o.x + (o.w - w); }
+      if (k.includes('n')) { h = Math.max(minSize, o.h - dy); y = o.y + (o.h - h); }
+      if ($('lockRatio').checked) {
+        const ratio = o.w / o.h;
+        if (Math.abs(dx) > Math.abs(dy)) h = w / ratio; else w = h * ratio;
+      }
+      c.x = snap(x); c.y = snap(y); c.w = snap(w); c.h = snap(h);
+    }
+
+    if (drag.parent) {
+      c.x = Math.max(0, Math.min(c.x, drag.parent.w - c.w));
+      c.y = Math.max(0, Math.min(c.y, drag.parent.h - c.h));
+    }
+    render();
+  }
+
+  function pointerUp() {
+    drag = null;
+    window.removeEventListener('pointermove', pointerMove);
+    render();
+  }
+
+  /* 文字画像生成 */
+  function makeTextImage(text, color, size, clearBg = true, bg = '#ffffff') {
+    const measure = document.createElement('canvas').getContext('2d');
+    measure.font = `bold ${size}px sans-serif`;
+    const width = Math.max(20, Math.ceil(measure.measureText(text).width + 24));
+    const height = Math.max(30, Math.ceil(size * 1.8));
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!clearBg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height); }
+    ctx.font = `bold ${size}px sans-serif`;
+    ctx.fillStyle = color;
+    ctx.textBaseline = 'middle';
+    let x = 12;
+    for (const ch of text) {
+      const cw = ctx.measureText(ch).width;
+      if (ch === '□') { const s = size * 0.68; ctx.fillRect(x + (cw - s) / 2, (height - s) / 2, s, s); }
+      else if (ch === '○') { const r = size * 0.36; ctx.beginPath(); ctx.arc(x + cw / 2, height / 2, r, 0, Math.PI * 2); ctx.fill(); }
+      else { ctx.fillText(ch, x, height / 2); }
+      x += cw;
+    }
+    return canvas.toDataURL('image/png');
+  }
+
+  /* イベントバインド */
+  $('btnAddParent').onclick = () => { $('parentFormatSheet').hidden = false; };
+  $('confirmParent').onclick = () => {
+    $('parentFormatSheet').hidden = true;
+    addParentTemplate(get('parentFormat'));
+  };
+
+  $('btnAddImage').onclick = () => { $('imageFile').click(); };
+  $('imageFile').onchange = e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b = boardBounds();
+      const c = {
+        id: nextId++, kind: 'image', parentId: null,
+        x: b.x + 10, y: b.y + 10, w: 80, h: 75,
+        text: file.name, contentData: reader.result, rotation: 0,
+        bg: '#ffffff', textColor: '#111111', fontSize: 20
+      };
+      cells.push(c);
+      selected = c.id;
+      render();
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  $('btnAddTextImg').onclick = () => {
+    $('textImageSheet').hidden = false;
+    $('textImageValue').focus();
+  };
+  $('textImageClearBg').onchange = () => {
+    $('textImageBgField').hidden = $('textImageClearBg').checked;
+  };
+  $('confirmTextImage').onclick = () => {
+    const val = get('textImageValue').trim();
+    if (!val) return;
+    const color = get('textImageColor');
+    const size = Math.max(8, Math.min(120, Number(get('textImageSize')) || 28));
+    const clearBg = $('textImageClearBg').checked;
+    const data = makeTextImage(val, color, size, clearBg, get('textImageBg'));
+    const measure = document.createElement('canvas').getContext('2d');
+    measure.font = `bold ${size}px sans-serif`;
+    const iw = Math.max(20, Math.ceil(measure.measureText(val).width + 24));
+    const ih = Math.max(30, Math.ceil(size * 1.8));
+    const b = boardBounds();
+    const c = {
+      id: nextId++, kind: 'image', parentId: null,
+      x: b.x + 10, y: b.y + 10,
+      w: Math.max(30, iw / mm), h: Math.max(15, ih / mm),
+      text: val, contentData: data, rotation: 0,
+      bg: clearBg ? 'transparent' : get('textImageBg'), textColor: color, fontSize: size
+    };
+    cells.push(c);
+    selected = c.id;
+    $('textImageSheet').hidden = true;
+    set('textImageValue', '');
+    render();
+  };
+
+  $('rotateLeft').onclick = () => {
+    const c = selectedCell();
+    if (c) { c.rotation = ((c.rotation || 0) - 90 + 360) % 360; render(); }
+  };
+  $('rotateRight').onclick = () => {
+    const c = selectedCell();
+    if (c) { c.rotation = ((c.rotation || 0) + 90) % 360; render(); }
+  };
+
+  $('btnSettings').onclick = () => { $('settingsSheet').hidden = false; };
+  $('paperSize').onchange = paperSetup;
+  $('orientation').onchange = paperSetup;
+  $('gridView').onchange = () => { gridBg.hidden = !$('gridView').checked; };
+
+  /* ボトムシートの閉じるボタン・背景タップ処理 */
+  document.querySelectorAll('.sheet-close').forEach(btn => {
+    btn.onclick = () => { $(btn.dataset.close).hidden = true; };
+  });
+  document.querySelectorAll('.sheet-backdrop').forEach(bg => {
+    bg.addEventListener('click', e => {
+      if (e.target === bg) bg.hidden = true;
+    });
+  });
+
+  /* 背景タップで選択解除 */
+  $('stageWrap').addEventListener('pointerdown', e => {
+    if (e.target === $('stageWrap') || e.target === paper || e.target === gridBg) {
+      selected = null;
+      render();
+    }
+  });
+
+  $('btnPrint').onclick = () => {
+    selected = null;
+    render();
+    const [pw, ph] = dims();
+    const bounds = cells.reduce((b, c) => {
+      let x = c.x, y = c.y;
+      if (c.parentId) {
+        const p = cells.find(p => p.id === c.parentId);
+        if (p) { x += p.x; y += p.y; }
+      }
+      return { x: Math.min(b.x, x), y: Math.min(b.y, y), r: Math.max(b.r, x + c.w), b: Math.max(b.b, y + c.h) };
+    }, { x: 0, y: 0, r: 0, b: 0 });
+
+    const scale = Math.min((pw - 16) / (bounds.r - bounds.x || 1), (ph - 16) / (bounds.b - bounds.y || 1), 1);
+    if ($('fitPrint').checked) {
+      stage.style.width = pw * mm + 'px';
+      stage.style.height = ph * mm + 'px';
+      paper.style.transformOrigin = 'top left';
+      paper.style.transform = `scale(${scale})`;
+      paper.style.width = pw * mm + 'px';
+      paper.style.height = ph * mm + 'px';
+    }
+    window.print();
+    setTimeout(() => {
+      paper.style.transform = '';
+      paper.style.width = '';
+      paper.style.height = '';
+      fitStage();
+    }, 500);
+  };
+
+  window.addEventListener('resize', fitStage);
+  if (!$('createdDate').value) {
+    const today = new Date();
+    $('createdDate').value = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0')
+    ].join('-');
+  }
+  paperSetup();
 })();
 </script>
 </body>
