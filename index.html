@@ -21,12 +21,9 @@ html, body {
   margin: 0;
   padding: 0;
   width: 100%;
-  min-height: 100dvh;
+  height: 100dvh;
   background: #242426;
   color: #fff;
-}
-body.phone-app {
-  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -34,7 +31,8 @@ body.phone-app {
 
 /* 上部ヘッダー */
 header {
-  min-height: 44px;
+  height: 46px;
+  min-height: 46px;
   background: #18181b;
   color: #fff;
   padding: 6px 10px;
@@ -51,7 +49,6 @@ header strong { font-size: 14px; white-space: nowrap; }
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
 }
 button, select, input { font: inherit; }
 button {
@@ -76,12 +73,12 @@ select, input[type=number], input[type=text] {
   color: #111;
 }
 
-/* ステージ領域 */
+/* ステージ領域：画面中央を標準位置とし、拡大時はスクロール可能 */
 .stage-wrap {
   flex: 1;
   position: relative;
   overflow: auto;
-  padding: 20px 14px;
+  padding: 24px 16px;
   background: #3a3a3e;
   display: flex;
   align-items: center;
@@ -89,6 +86,7 @@ select, input[type=number], input[type=text] {
   -webkit-overflow-scrolling: touch;
 }
 .stage-sizer {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -96,7 +94,7 @@ select, input[type=number], input[type=text] {
 }
 .stage {
   position: relative;
-  background: #fff;
+  background: #ffffff;
   color: #111;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   transform-origin: center center;
@@ -106,8 +104,9 @@ select, input[type=number], input[type=text] {
   position: absolute;
   top: -20px;
   left: 0;
-  color: #ccc;
+  color: #e5e7eb;
   font-size: 11px;
+  white-space: nowrap;
   pointer-events: none;
 }
 
@@ -156,7 +155,7 @@ select, input[type=number], input[type=text] {
   touch-action: none;
 }
 .cell.text-image {
-  border: none;
+  border: none !important;
   background: transparent !important;
 }
 .cell.selected {
@@ -238,6 +237,7 @@ select, input[type=number], input[type=text] {
 /* 下部固定アクションバー */
 .bottom-bar {
   height: 54px;
+  min-height: 54px;
   background: #18181b;
   border-top: 1px solid #333;
   display: flex;
@@ -327,7 +327,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 }
 </style>
 </head>
-<body class="phone-app">
+<body>
 
 <header>
   <strong>現物表示マス編集</strong>
@@ -459,14 +459,6 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
     <div class="field"><label><input id="gridToggle" type="checkbox" checked> グリッド吸着（5mm）</label></div>
     <div class="field"><label><input id="gridView" type="checkbox"> 補助線表示</label></div>
     <div class="field"><label><input id="fitPrint" type="checkbox" checked> 1枚に収める</label></div>
-    <div class="field">
-      <label>画面表示モード</label>
-      <div class="row">
-        <button type="button" id="phonePortrait" style="color:#111;background:#e5e7eb;border-color:#bbb;">スマホ縦</button>
-        <button type="button" id="phoneLandscape" style="color:#111;background:#e5e7eb;border-color:#bbb;">スマホ横</button>
-        <button type="button" id="fitDesktop" style="color:#111;background:#e5e7eb;border-color:#bbb;">通常</button>
-      </div>
-    </div>
     <small class="help" id="status">準備完了。親マスを追加し、必要な子マスを配置してください。</small>
   </div>
 </div>
@@ -484,16 +476,22 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  const selectedCell = () => cells.find(c => c.id === selected);
 
  function dims() {
-  let [w, h] = sizes[get('paperSize')];
+  let [w, h] = sizes[get('paperSize')] || sizes.A4;
   if (get('orientation') === 'landscape') [w, h] = [h, w];
   return [w, h];
  }
+
+ function stagePixelDims() {
+  const [w, h] = dims();
+  return { rawW: Math.max(100, w * mm), rawH: Math.max(100, h * mm) };
+ }
+
  function boardBounds() {
   const [pw, ph] = dims();
   return { x: 0, y: ph * 0.10, w: pw, h: ph * 0.90 };
  }
 
- /* 用紙の縦・横それぞれに応じた等間隔グリッドの定位置スロットを計算（横:3列×2行 / 縦:2列×3行） */
+ /* 縦・横どちらの用紙でも等間隔の定位置グリッドを算出（横: 3列×2行 / 縦: 2列×3行） */
  function getParentGridSlot(slotIndex) {
   const board = boardBounds();
   const isLandscape = get('orientation') === 'landscape';
@@ -501,8 +499,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const rows = isLandscape ? 2 : 3;
   const gapX = 5;
   const gapY = 5;
-  const cellW = Math.round(((board.w - gapX * (cols + 1)) / cols) * 10) / 10;
-  const cellH = Math.round(((board.h - gapY * (rows + 1)) / rows) * 10) / 10;
+  const cellW = Math.max(20, Math.round(((board.w - gapX * (cols + 1)) / cols) * 10) / 10);
+  const cellH = Math.max(20, Math.round(((board.h - gapY * (rows + 1)) / rows) * 10) / 10);
 
   const pageCapacity = cols * rows;
   const localIdx = slotIndex % pageCapacity;
@@ -515,7 +513,6 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   return { x, y, w: cellW, h: cellH };
  }
 
- /* 既存親マスを現在の用紙・向きに合わせて定位置グリッドへ等間隔再配置 */
  function relayoutParentsToGrid() {
   const parents = cells.filter(c => c.kind === 'parent');
   parents.forEach((p, idx) => {
@@ -542,21 +539,14 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   });
  }
 
- function paperSetup() {
-  let [w, h] = dims();
-  stage.style.width = (w * mm) + 'px';
-  stage.style.height = (h * mm) + 'px';
-  $('paperLabel').textContent = get('paperSize') + '・' + (get('orientation') === 'portrait' ? '縦' : '横') + '（' + w + '×' + h + 'mm）';
-  $('sheetHeader').style.height = '10%';
-  relayoutParentsToGrid();
-  render();
-  fitStage();
- }
-
  function applyScale(scale, centerTarget = null) {
-  const rawW = stage.offsetWidth || 1;
-  const rawH = stage.offsetHeight || 1;
-  currentScale = Math.max(0.25, Math.min(4, scale));
+  const { rawW, rawH } = stagePixelDims();
+  stage.style.width = rawW + 'px';
+  stage.style.height = rawH + 'px';
+
+  const safeScale = Number.isFinite(scale) && scale > 0 ? Math.max(0.2, Math.min(4, scale)) : 0.5;
+  currentScale = safeScale;
+
   const scaledW = rawW * currentScale;
   const scaledH = rawH * currentScale;
   stageSizer.style.width = scaledW + 'px';
@@ -568,10 +558,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    if (centerTarget) {
     const cx = (centerTarget.x + centerTarget.w / 2) * mm * currentScale;
     const cy = (centerTarget.y + centerTarget.h / 2) * mm * currentScale;
-    const sizerLeft = stageSizer.offsetLeft;
-    const sizerTop = stageSizer.offsetTop;
-    stageWrap.scrollLeft = Math.max(0, sizerLeft + cx - stageWrap.clientWidth / 2);
-    stageWrap.scrollTop = Math.max(0, sizerTop + cy - stageWrap.clientHeight / 2);
+    stageWrap.scrollLeft = Math.max(0, stageSizer.offsetLeft + cx - stageWrap.clientWidth / 2);
+    stageWrap.scrollTop = Math.max(0, stageSizer.offsetTop + cy - stageWrap.clientHeight / 2);
    } else {
     stageWrap.scrollLeft = Math.max(0, (stageSizer.offsetWidth - stageWrap.clientWidth) / 2);
     stageWrap.scrollTop = Math.max(0, (stageSizer.offsetHeight - stageWrap.clientHeight) / 2);
@@ -580,32 +568,44 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   });
  }
 
- /* 用紙全体を画面中央に収める標準フィット */
  function fitStage() {
   focusedParentId = null;
-  const rawW = stage.offsetWidth || 1;
-  const rawH = stage.offsetHeight || 1;
-  const scaleW = (stageWrap.clientWidth - 28) / rawW;
-  const scaleH = (stageWrap.clientHeight - 40) / rawH;
-  const s = Math.max(0.25, Math.min(1, scaleW, scaleH));
+  const { rawW, rawH } = stagePixelDims();
+  const wrapW = Math.max(200, stageWrap.clientWidth || window.innerWidth || 390);
+  const wrapH = Math.max(200, stageWrap.clientHeight || (window.innerHeight - 100) || 600);
+  const scaleW = (wrapW - 32) / rawW;
+  const scaleH = (wrapH - 44) / rawH;
+  const s = Math.max(0.2, Math.min(1, scaleW, scaleH));
   applyScale(s, null);
  }
 
- /* 選択した親マスをメインフィールドに大きく収めるズーム */
  function focusParentCell(parentCell) {
   if (!parentCell || parentCell.kind !== 'parent') return;
   focusedParentId = parentCell.id;
-  const availW = Math.max(120, stageWrap.clientWidth - 36);
-  const availH = Math.max(120, stageWrap.clientHeight - 130);
+  const wrapW = Math.max(200, stageWrap.clientWidth || window.innerWidth || 390);
+  const wrapH = Math.max(200, stageWrap.clientHeight || (window.innerHeight - 100) || 600);
+  const availW = Math.max(120, wrapW - 36);
+  const availH = Math.max(120, wrapH - 130);
   const cellW = Math.max(20, parentCell.w * mm);
   const cellH = Math.max(20, parentCell.h * mm);
-  const s = Math.max(0.4, Math.min(3.5, availW / cellW, availH / cellH));
+  const s = Math.max(0.35, Math.min(3.5, availW / cellW, availH / cellH));
   applyScale(s, parentCell);
+ }
+
+ function paperSetup() {
+  const [w, h] = dims();
+  const { rawW, rawH } = stagePixelDims();
+  stage.style.width = rawW + 'px';
+  stage.style.height = rawH + 'px';
+  $('paperLabel').textContent = `${get('paperSize')}・${get('orientation') === 'portrait' ? '縦' : '横'}（${w}×${h}mm）`;
+  $('sheetHeader').style.height = '10%';
+  relayoutParentsToGrid();
+  render();
+  fitStage();
  }
 
  function snap(v) { return $('gridToggle').checked ? Math.round(v / 5) * 5 : v; }
 
- /* 親マス内の既存要素と重ならない空き座標を探す */
  function findEmptySpotInParent(parent, w, h) {
   const cw = Math.min(w, parent.w);
   const ch = Math.min(h, parent.h);
@@ -630,7 +630,6 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   return { x: 0, y: 0, w: cw, h: ch };
  }
 
- /* 次の空いている定位置スロット番号を取得 */
  function nextAvailableParentSlotIndex() {
   const used = new Set(cells.filter(c => c.kind === 'parent' && typeof c.slotIndex === 'number').map(c => c.slotIndex));
   let idx = 0;
@@ -641,22 +640,19 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  function addCell(kind, parentId = null) {
   const c = {
    id: nextId++, kind, parentId,
-   x: 10, y: 10, w: 20, h: 15,
+   x: 5, y: 5, w: 20, h: 15,
    text: kind === 'parent' ? '親マス' : '子マス',
-   type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: 22
+   type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: 20
   };
   if (kind === 'parent') {
    const slotIdx = nextAvailableParentSlotIndex();
    const slot = getParentGridSlot(slotIdx);
    c.slotIndex = slotIdx;
-   c.x = slot.x;
-   c.y = slot.y;
-   c.w = slot.w;
-   c.h = slot.h;
+   c.x = slot.x; c.y = slot.y; c.w = slot.w; c.h = slot.h;
   }
   if (parentId) {
    const p = cells.find(x => x.id === parentId);
-   if (!p) return;
+   if (!p) return null;
    const spot = findEmptySpotInParent(p, c.w, c.h);
    c.x = spot.x; c.y = spot.y; c.w = spot.w; c.h = spot.h;
   }
@@ -665,7 +661,6 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   render();
   syncPanel();
   if (kind === 'parent') focusParentCell(c);
-  $('status').textContent = kind === 'child' ? '子マスを追加しました。' : '親マスを定位置に追加しました。';
   return c;
  }
 
@@ -673,13 +668,13 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const parent = addCell('parent');
   if (!parent) return;
   parent.format = format;
-  const childH = Math.min(15, Math.round(parent.h * 0.2 * 10) / 10);
+  const childH = Math.min(15, Math.max(8, Math.round(parent.h * 0.22 * 10) / 10));
   const specs = format === 'assembly'
    ? [
       { x: 0, w: Math.round(parent.w * (2 / 9) * 10) / 10 },
       { x: Math.round(parent.w * (2 / 9) * 10) / 10, w: Math.round(parent.w * (2 / 9) * 10) / 10 },
       { x: Math.round(parent.w * (4 / 9) * 10) / 10, w: Math.round(parent.w * (3 / 9) * 10) / 10 },
-      { x: Math.round(parent.w * (7 / 9) * 10) / 10, w: Math.round((parent.w - parent.w * (7 / 9)) * 10) / 10 }
+      { x: Math.round(parent.w * (7 / 9) * 10) / 10, w: Math.max(5, Math.round((parent.w - parent.w * (7 / 9)) * 10) / 10) }
      ]
    : [
       { x: 0, w: Math.round(parent.w * (2 / 9) * 10) / 10 },
@@ -688,7 +683,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   specs.forEach(spec => cells.push({
    id: nextId++, kind: 'child', parentId: parent.id,
    x: spec.x, y: 0, w: spec.w, h: childH,
-   text: '子マス', type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: 22
+   text: '子マス', type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: 18
   }));
   selected = parent.id;
   render();
@@ -721,7 +716,6 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   return canvas.toDataURL('image/png');
  }
 
- /* 選択マスの種類に応じたフローティング・ポップアップ */
  function updateContextPopup() {
   const c = selectedCell();
   if (!c || drag) {
@@ -763,7 +757,6 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   positionPopup();
  }
 
- /* 拡大時・親マスフォーカス時でも画面内（ヘッダー・下部バーの間）に確実に収める */
  function positionPopup() {
   const c = selectedCell();
   if (!c || popup.hidden) return;
@@ -772,7 +765,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const rect = el.getBoundingClientRect();
   const popRect = popup.getBoundingClientRect();
   const margin = 8;
-  const topLimit = 52;
+  const topLimit = 54;
   const bottomLimit = window.innerHeight - 64;
 
   let left = rect.left + rect.width / 2 - popRect.width / 2;
@@ -828,9 +821,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    const wasParent = c.kind === 'parent';
    cells = cells.filter(x => x.id !== c.id && x.parentId !== c.id);
    selected = null;
-   if (wasParent) {
-    relayoutParentsToGrid();
-   }
+   if (wasParent) relayoutParentsToGrid();
    render();
    syncPanel();
    fitStage();
@@ -887,7 +878,6 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    }
    el.appendChild(content);
 
-   /* 親マスは定位置ロック仕様のためリサイズハンドルを出さず、子マス・画像のみハンドル表示 */
    if (c.id === selected && c.kind !== 'parent') {
     ['nw', 'ne', 'sw', 'se'].forEach(pos => {
      const h = document.createElement('i');
@@ -904,9 +894,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
     selected = c.id;
     render();
     syncPanel();
-    if (c.kind === 'parent' && !wasSelected) {
-     focusParentCell(c);
-    }
+    if (c.kind === 'parent' && !wasSelected) focusParentCell(c);
    });
    paper.appendChild(el);
   }
@@ -957,24 +945,17 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   render();
  }
 
- function getStageScale() {
-  const rect = stage.getBoundingClientRect();
-  return stage.offsetWidth ? rect.width / stage.offsetWidth : 1;
- }
-
  function pointerDown(e) {
   const id = +e.currentTarget.dataset.id, c = cells.find(c => c.id === id);
+  if (!c) return;
   const prevSelected = selected;
   selected = id;
   const handle = e.target.dataset.handle || null;
 
-  /* 親マスは定位置ロック仕様のため選択・ズームのみ行い、ドラッグ移動はさせない */
   if (c.kind === 'parent') {
    render();
    syncPanel();
-   if (prevSelected !== id) {
-    focusParentCell(c);
-   }
+   if (prevSelected !== id) focusParentCell(c);
    e.preventDefault();
    e.stopPropagation();
    return;
@@ -982,7 +963,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 
   drag = {
    id, handle,
-   scale: getStageScale(),
+   scale: currentScale || 1,
    startX: e.clientX, startY: e.clientY,
    orig: { x: c.x, y: c.y, w: c.w, h: c.h },
    parent: c.parentId ? cells.find(p => p.id === c.parentId) : null
@@ -999,6 +980,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  function pointerMove(e) {
   if (!drag) return;
   const c = cells.find(c => c.id === drag.id);
+  if (!c) return;
   const dx = (e.clientX - drag.startX) / (mm * drag.scale);
   const dy = (e.clientY - drag.startY) / (mm * drag.scale);
   const o = drag.orig;
@@ -1035,13 +1017,6 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   syncPanel();
  }
 
- $('addParent').onclick = () => { $('parentFormatDialog').hidden = false; };
- $('cancelParent').onclick = () => { $('parentFormatDialog').hidden = true; };
- $('confirmParent').onclick = () => { const fmt = get('parentFormat'); $('parentFormatDialog').hidden = true; addParentTemplate(fmt); };
-
- fields.forEach(id => $(id).addEventListener('input', updateFromPanel));
-
- $('addImage').onclick = () => { $('imageFile').click(); };
  function rotateSelectedImage(delta) {
   const c = selectedCell();
   if (!c || c.kind !== 'image' || !c.contentData) return;
@@ -1049,6 +1024,32 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   render();
   syncPanel();
  }
+
+ function openTextImageDialog(c = null) {
+  textImageEditId = c ? c.id : null;
+  $('textImageValue').value = c ? (c.text || '') : '';
+  $('textImageColor').value = c ? (c.textColor || '#111111') : '#111111';
+  $('textImageSize').value = c ? (c.fontSize || 22) : 22;
+  $('textImageClearBg').checked = !c || c.bg === 'transparent';
+  $('textImageBg').value = c && c.textImageBg ? c.textImageBg : '#ffffff';
+  $('textImageBgField').hidden = $('textImageClearBg').checked;
+  $('textImageTitle').textContent = c ? '文字画像の編集' : '文字画像の作成';
+  $('confirmTextImage').textContent = c ? '変更を反映' : '挿入';
+  $('textImageDialog').hidden = false;
+  $('textImageValue').focus();
+ }
+
+ $('addParent').onclick = () => { $('parentFormatDialog').hidden = false; };
+ $('cancelParent').onclick = () => { $('parentFormatDialog').hidden = true; };
+ $('confirmParent').onclick = () => {
+  const fmt = get('parentFormat');
+  $('parentFormatDialog').hidden = true;
+  addParentTemplate(fmt);
+ };
+
+ fields.forEach(id => $(id).addEventListener('input', updateFromPanel));
+
+ $('addImage').onclick = () => { $('imageFile').click(); };
  $('rotateLeft').onclick = () => rotateSelectedImage(-90);
  $('rotateRight').onclick = () => rotateSelectedImage(90);
 
@@ -1079,9 +1080,128 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   e.target.value = '';
  };
 
- function openTextImageDialog(c = null) {
-  textImageEditId = c ? c.id : null;
-  $('textImageValue').value = c ? (c.text || '') : '';
-  $('textImageColor').value = c ? (c.textColor || '#111111') : '#111111';
-  $('textImageSize').value = c ? (c.fontSize || 22) : 22;
-  $('textImageClearBg').checked = !
+ $('addTextImage').onclick = () => {
+  const current = selectedCell();
+  if (current && current.type === 'textImage') { openTextImageDialog(current); return; }
+  if (!current || current.kind !== 'parent') {
+   alert('文字画像を配置する親マスを選択してから挿入してください。');
+   return;
+  }
+  openTextImageDialog();
+ };
+ $('textImageClearBg').onchange = () => { $('textImageBgField').hidden = $('textImageClearBg').checked; };
+ $('cancelTextImage').onclick = () => { $('textImageDialog').hidden = true; textImageEditId = null; };
+ $('confirmTextImage').onclick = () => {
+  const value = get('textImageValue').trim();
+  if (!value) { alert('文字を入力してください。'); return; }
+  const color = get('textImageColor');
+  const size = Math.max(8, Math.min(120, Number(get('textImageSize')) || 22));
+  const clearBg = $('textImageClearBg').checked;
+  const bg = clearBg ? null : get('textImageBg');
+  const data = makeTextImage(value, color, size, clearBg, bg || '#ffffff');
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = `bold ${size}px sans-serif`;
+  const imageW = Math.max(20, Math.ceil(measure.measureText(value).width + 24));
+  const imageH = Math.max(30, Math.ceil(size * 1.8));
+
+  if (textImageEditId !== null) {
+   const c = cells.find(x => x.id === textImageEditId);
+   if (c) {
+    c.text = value; c.textColor = color; c.fontSize = size;
+    c.bg = 'transparent';
+    c.textImageBg = bg; c.contentData = data;
+   }
+   selected = textImageEditId;
+  } else {
+   const parent = selectedCell();
+   if (!parent || parent.kind !== 'parent') { alert('配置先の親マスを選択してください。'); return; }
+   const spot = findEmptySpotInParent(parent, Math.max(30, imageW / mm), Math.max(15, imageH / mm));
+   const c = {
+    id: nextId++, kind: 'image', type: 'textImage', parentId: parent.id,
+    x: spot.x, y: spot.y, w: spot.w, h: spot.h,
+    text: value, contentData: data, rotation: 0,
+    bg: 'transparent', textColor: color, fontSize: size, textImageBg: bg
+   };
+   cells.push(c);
+   selected = c.id;
+  }
+  textImageEditId = null;
+  $('textImageDialog').hidden = true;
+  render();
+  syncPanel();
+ };
+
+ $('resetZoom').onclick = () => { fitStage(); };
+ $('openSettings').onclick = () => { $('settingsSheet').hidden = false; };
+ document.querySelectorAll('.sheet-close').forEach(btn => {
+  btn.onclick = () => { $(btn.dataset.close).hidden = true; };
+ });
+ document.querySelectorAll('.sheet-backdrop').forEach(bg => {
+  bg.addEventListener('click', e => { if (e.target === bg) bg.hidden = true; });
+ });
+
+ $('paperSize').onchange = paperSetup;
+ $('orientation').onchange = paperSetup;
+ $('gridToggle').onchange = () => {
+  $('status').textContent = $('gridToggle').checked ? '5mm単位の吸着を有効にしました。' : '自由配置にしました。';
+ };
+ $('gridView').onchange = () => { gridBg.hidden = !$('gridView').checked; };
+
+ $('print').onclick = () => {
+  const prevSelected = selected;
+  selected = null;
+  render();
+  const [pw, ph] = dims();
+  const contentBounds = cells.reduce((b, c) => {
+   let x = c.x, y = c.y;
+   if (c.parentId) { const p = cells.find(p => p.id === c.parentId); if (p) { x += p.x; y += p.y; } }
+   return { x: Math.min(b.x, x), y: Math.min(b.y, y), r: Math.max(b.r, x + c.w), b: Math.max(b.b, y + c.h) };
+  }, { x: 0, y: 0, r: 0, b: 0 });
+  const scale = Math.min((pw - 16) / (contentBounds.r - contentBounds.x || 1), (ph - 16) / (contentBounds.b - contentBounds.y || 1), 1);
+  if ($('fitPrint').checked) {
+   stage.style.width = pw * mm + 'px';
+   stage.style.height = ph * mm + 'px';
+   paper.style.transformOrigin = 'top left';
+   paper.style.transform = 'scale(' + scale + ')';
+   paper.style.width = pw * mm + 'px';
+   paper.style.height = ph * mm + 'px';
+  }
+  window.print();
+  setTimeout(() => {
+   paper.style.transform = ''; paper.style.width = ''; paper.style.height = '';
+   selected = prevSelected;
+   render();
+   if (focusedParentId) {
+    const p = cells.find(x => x.id === focusedParentId);
+    if (p) { focusParentCell(p); return; }
+   }
+   fitStage();
+  }, 500);
+ };
+
+ paper.addEventListener('pointerdown', e => {
+  if (e.target === paper || e.target === gridBg) {
+   selected = null;
+   render();
+   syncPanel();
+   fitStage();
+  }
+ });
+ stageWrap.addEventListener('scroll', positionPopup, { passive: true });
+ window.addEventListener('resize', () => {
+  if (focusedParentId) {
+   const p = cells.find(x => x.id === focusedParentId);
+   if (p) { focusParentCell(p); return; }
+  }
+  fitStage();
+ });
+
+ if (!$('createdDate').value) {
+  const today = new Date();
+  $('createdDate').value = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
+ }
+ paperSetup();
+})();
+</script>
+</body>
+</html>
