@@ -332,6 +332,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 <header>
   <strong>現物表示マス編集</strong>
   <div class="header-tools">
+    <button type="button" id="resetZoom">全体表示</button>
     <button type="button" id="openSettings">用紙・設定</button>
     <button type="button" class="primary" id="print">印刷</button>
   </div>
@@ -473,10 +474,10 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 <script>
 (() => {
  const $ = id => document.getElementById(id);
- const paper = $('paper'), stage = $('stage'), stageSizer = $('stageSizer'), gridBg = $('gridBg'), popup = $('contextPopup');
+ const paper = $('paper'), stage = $('stage'), stageSizer = $('stageSizer'), stageWrap = $('stageWrap'), gridBg = $('gridBg'), popup = $('contextPopup');
  const mm = 3.78;
  const sizes = { A4: [210, 297], B5: [182, 257] };
- let cells = [], selected = null, nextId = 1, drag = null, textImageEditId = null;
+ let cells = [], selected = null, nextId = 1, drag = null, textImageEditId = null, currentScale = 1, focusedParentId = null;
  const fields = ['w', 'h', 'bg', 'fontSize', 'lockRatio', 'cellText', 'textColor'];
  const get = id => $(id).value;
  const set = (id, v) => $(id).value = v;
@@ -503,19 +504,54 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   fitStage();
  }
 
- /* 用紙を画面中央に配置し、拡大率に応じた外枠サイズでセンタリングを維持 */
- function fitStage() {
-  const wrap = $('stageWrap');
+ function applyScale(scale, centerTarget = null) {
   const rawW = stage.offsetWidth || 1;
   const rawH = stage.offsetHeight || 1;
-  const scaleW = (wrap.clientWidth - 28) / rawW;
-  const scaleH = (wrap.clientHeight - 40) / rawH;
-  const s = Math.max(0.25, Math.min(1, scaleW, scaleH));
-  stageSizer.style.width = (rawW * s) + 'px';
-  stageSizer.style.height = (rawH * s) + 'px';
-  stage.style.transform = 'scale(' + s + ')';
+  currentScale = Math.max(0.25, Math.min(4, scale));
+  const scaledW = rawW * currentScale;
+  const scaledH = rawH * currentScale;
+  stageSizer.style.width = scaledW + 'px';
+  stageSizer.style.height = scaledH + 'px';
+  stage.style.transform = 'scale(' + currentScale + ')';
   stage.style.margin = '0';
-  positionPopup();
+
+  requestAnimationFrame(() => {
+   if (centerTarget) {
+    const cx = (centerTarget.x + centerTarget.w / 2) * mm * currentScale;
+    const cy = (centerTarget.y + centerTarget.h / 2) * mm * currentScale;
+    const sizerLeft = stageSizer.offsetLeft;
+    const sizerTop = stageSizer.offsetTop;
+    stageWrap.scrollLeft = Math.max(0, sizerLeft + cx - stageWrap.clientWidth / 2);
+    stageWrap.scrollTop = Math.max(0, sizerTop + cy - stageWrap.clientHeight / 2);
+   } else {
+    stageWrap.scrollLeft = Math.max(0, (stageSizer.offsetWidth - stageWrap.clientWidth) / 2);
+    stageWrap.scrollTop = Math.max(0, (stageSizer.offsetHeight - stageWrap.clientHeight) / 2);
+   }
+   positionPopup();
+  });
+ }
+
+ /* 用紙全体を画面中央に収める標準フィット */
+ function fitStage() {
+  focusedParentId = null;
+  const rawW = stage.offsetWidth || 1;
+  const rawH = stage.offsetHeight || 1;
+  const scaleW = (stageWrap.clientWidth - 28) / rawW;
+  const scaleH = (stageWrap.clientHeight - 40) / rawH;
+  const s = Math.max(0.25, Math.min(1, scaleW, scaleH));
+  applyScale(s, null);
+ }
+
+ /* 選択した親マスをメインフィールドに大きく収めるズーム */
+ function focusParentCell(parentCell) {
+  if (!parentCell || parentCell.kind !== 'parent') return;
+  focusedParentId = parentCell.id;
+  const availW = Math.max(120, stageWrap.clientWidth - 36);
+  const availH = Math.max(120, stageWrap.clientHeight - 130);
+  const cellW = Math.max(20, parentCell.w * mm);
+  const cellH = Math.max(20, parentCell.h * mm);
+  const s = Math.max(0.4, Math.min(3.5, availW / cellW, availH / cellH));
+  applyScale(s, parentCell);
  }
 
  function snap(v) { return $('gridToggle').checked ? Math.round(v / 5) * 5 : v; }
@@ -573,6 +609,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   selected = c.id;
   render();
   syncPanel();
+  if (kind === 'parent') focusParentCell(c);
   $('status').textContent = kind === 'child' ? '子マスを追加しました。' : '親マスを追加しました。';
   return c;
  }
@@ -592,6 +629,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   selected = parent.id;
   render();
   syncPanel();
+  focusParentCell(parent);
  }
 
  function descendants(id) { return cells.filter(c => c.parentId === id); }
@@ -661,6 +699,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   positionPopup();
  }
 
+ /* 拡大時・親マスフォーカス時でも画面内（ヘッダー・下部バーの間）に確実に収める */
  function positionPopup() {
   const c = selectedCell();
   if (!c || popup.hidden) return;
@@ -668,14 +707,20 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   if (!el) return;
   const rect = el.getBoundingClientRect();
   const popRect = popup.getBoundingClientRect();
-  const gap = 10;
+  const margin = 8;
+  const topLimit = 52;
+  const bottomLimit = window.innerHeight - 64;
 
   let left = rect.left + rect.width / 2 - popRect.width / 2;
-  left = Math.max(8, Math.min(window.innerWidth - popRect.width - 8, left));
+  left = Math.max(margin, Math.min(window.innerWidth - popRect.width - margin, left));
 
-  let top = rect.top - popRect.height - gap;
-  if (top < 52) top = rect.bottom + gap;
-  if (top + popRect.height > window.innerHeight - 64) top = 52;
+  let top = rect.top - popRect.height - margin;
+  if (top < topLimit) {
+   top = rect.bottom + margin;
+  }
+  if (top + popRect.height > bottomLimit) {
+   top = Math.max(topLimit, Math.min(bottomLimit - popRect.height, topLimit));
+  }
 
   popup.style.left = left + 'px';
   popup.style.top = top + 'px';
@@ -704,11 +749,13 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    selected = copy.id;
    render();
    syncPanel();
+   if (copy.kind === 'parent') focusParentCell(copy);
   } else if (act === 'del') {
    cells = cells.filter(x => x.id !== c.id && x.parentId !== c.id);
    selected = null;
    render();
    syncPanel();
+   fitStage();
   }
  });
 
@@ -774,9 +821,13 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    el.addEventListener('pointerdown', pointerDown);
    el.addEventListener('click', e => {
     e.stopPropagation();
+    const wasSelected = selected === c.id;
     selected = c.id;
     render();
     syncPanel();
+    if (c.kind === 'parent' && !wasSelected) {
+     focusParentCell(c);
+    }
    });
    paper.appendChild(el);
   }
@@ -829,6 +880,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 
  function pointerDown(e) {
   const id = +e.currentTarget.dataset.id, c = cells.find(c => c.id === id);
+  const prevSelected = selected;
   selected = id;
   const handle = e.target.dataset.handle || null;
   drag = {
@@ -841,6 +893,9 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   popup.hidden = true;
   render();
   syncPanel();
+  if (c.kind === 'parent' && prevSelected !== id) {
+   focusParentCell(c);
+  }
   e.preventDefault();
   e.stopPropagation();
   window.addEventListener('pointermove', pointerMove);
@@ -995,6 +1050,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   syncPanel();
  };
 
+ $('resetZoom').onclick = () => { fitStage(); };
  $('openSettings').onclick = () => { $('settingsSheet').hidden = false; };
  document.querySelectorAll('.sheet-close').forEach(btn => {
   btn.onclick = () => { $(btn.dataset.close).hidden = true; };
@@ -1035,6 +1091,10 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    paper.style.transform = ''; paper.style.width = ''; paper.style.height = '';
    selected = prevSelected;
    render();
+   if (focusedParentId) {
+    const p = cells.find(x => x.id === focusedParentId);
+    if (p) { focusParentCell(p); return; }
+   }
    fitStage();
   }, 500);
  };
@@ -1044,10 +1104,17 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    selected = null;
    render();
    syncPanel();
+   fitStage();
   }
  });
- $('stageWrap').addEventListener('scroll', positionPopup, { passive: true });
- window.addEventListener('resize', fitStage);
+ stageWrap.addEventListener('scroll', positionPopup, { passive: true });
+ window.addEventListener('resize', () => {
+  if (focusedParentId) {
+   const p = cells.find(x => x.id === focusedParentId);
+   if (p) { focusParentCell(p); return; }
+  }
+  fitStage();
+ });
  if (!$('createdDate').value) {
   const today = new Date();
   $('createdDate').value = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
