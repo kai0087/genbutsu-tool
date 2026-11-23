@@ -21,12 +21,16 @@ html, body {
   margin: 0;
   padding: 0;
   width: 100%;
-  height: 100dvh;
+  height: 100%;
   background: #242426;
   color: #fff;
+  overflow: hidden;
+}
+body {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 /* 上部ヘッダー */
@@ -73,42 +77,60 @@ select, input[type=number], input[type=text] {
   color: #111;
 }
 
-/* ステージ領域：画面中央を標準位置とし、拡大時はスクロール可能 */
+/* ステージ領域：用紙が小さい時は中央、大きい時は左上からスクロール可能 */
+.stage-area {
+  flex: 1 1 0;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
 .stage-wrap {
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 0;
   position: relative;
   overflow: auto;
-  padding: 24px 16px;
+  padding: 28px 16px 16px;
   background: #3a3a3e;
   display: flex;
-  align-items: center;
-  justify-content: center;
   -webkit-overflow-scrolling: touch;
 }
 .stage-sizer {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  margin: auto;
 }
 .stage {
-  position: relative;
+  position: absolute;
+  left: 0; top: 0;
   background: #ffffff;
   color: #111;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  transform-origin: center center;
-  flex-shrink: 0;
+  transform-origin: 0 0;
 }
 .paper-label {
   position: absolute;
-  top: -20px;
-  left: 0;
+  top: 6px;
+  left: 10px;
+  z-index: 5;
   color: #e5e7eb;
   font-size: 11px;
   white-space: nowrap;
   pointer-events: none;
 }
+#errorBanner {
+  position: fixed;
+  left: 8px; right: 8px; bottom: 62px;
+  z-index: 2000;
+  background: #b3261e;
+  color: #fff;
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+#errorBanner[hidden] { display: none; }
 
 /* 用紙ヘッダー */
 .sheet-header {
@@ -318,7 +340,11 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 
 /* 印刷時 */
 @media print {
-  html, body { height: auto !important; overflow: visible !important; background: #fff !important; color: #111 !important; display: block !important; }
+  html, body { height: auto !important; overflow: visible !important; background: #fff !important; color: #111 !important; display: block !important; position: static !important; }
+  .stage-area { display: block !important; position: static !important; }
+  .stage-sizer { position: static !important; margin: 0 !important; }
+  .stage { position: relative !important; left: 0 !important; top: 0 !important; }
+  #errorBanner { display: none !important; }
   header, .bottom-bar, .context-popup, .sheet-backdrop, .paper-label, .grid-bg, .handle { display: none !important; }
   .stage-wrap, .stage-sizer { padding: 0 !important; overflow: visible !important; background: #fff !important; display: block !important; width: auto !important; height: auto !important; }
   .stage { margin: 0 !important; box-shadow: none !important; transform: none !important; }
@@ -338,10 +364,11 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   </div>
 </header>
 
+<div class="stage-area">
+<div class="paper-label" id="paperLabel"></div>
 <section class="stage-wrap" id="stageWrap">
   <div class="stage-sizer" id="stageSizer">
     <div class="stage" id="stage">
-      <div class="paper-label" id="paperLabel">A4・横</div>
       <div id="paper">
         <div class="sheet-header" id="sheetHeader">
           <label class="sheet-title"><input id="sheetTitle" type="text" value="車型別部品表示票" aria-label="表示票タイトル"></label>
@@ -355,6 +382,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
     </div>
   </div>
 </section>
+</div>
+<div id="errorBanner" hidden></div>
 
 <!-- 選択マスの種類に応じて切り替わるフローティング・ポップアップ -->
 <div id="contextPopup" class="context-popup" hidden></div>
@@ -466,10 +495,19 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 <script>
 (() => {
  const $ = id => document.getElementById(id);
+ /* どこかで例外が出たら画面下に赤帯で表示（原因が分かるように） */
+ function showError(msg) {
+  const b = document.getElementById('errorBanner');
+  if (!b) return;
+  b.hidden = false;
+  b.textContent = 'エラー: ' + msg;
+ }
+ window.addEventListener('error', e => showError((e.message || '不明') + (e.lineno ? ' (行' + e.lineno + ')' : '')));
+ window.addEventListener('unhandledrejection', e => showError(String(e.reason)));
  const paper = $('paper'), stage = $('stage'), stageSizer = $('stageSizer'), stageWrap = $('stageWrap'), gridBg = $('gridBg'), popup = $('contextPopup');
  const mm = 3.78;
  const sizes = { A4: [210, 297], B5: [182, 257] };
- let cells = [], selected = null, nextId = 1, drag = null, textImageEditId = null, currentScale = 1, focusedParentId = null;
+ let cells = [], selected = null, nextId = 1, drag = null, textImageEditId = null, currentScale = 1, focusedParentId = null, cellTouchedAt = 0;
  const fields = ['w', 'h', 'bg', 'fontSize', 'lockRatio', 'cellText', 'textColor'];
  const get = id => $(id).value;
  const set = (id, v) => $(id).value = v;
@@ -544,7 +582,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   stage.style.width = rawW + 'px';
   stage.style.height = rawH + 'px';
 
-  const safeScale = Number.isFinite(scale) && scale > 0 ? Math.max(0.2, Math.min(4, scale)) : 0.5;
+  const safeScale = Number.isFinite(scale) && scale > 0 ? Math.max(0.1, Math.min(4, scale)) : 0.5;
   currentScale = safeScale;
 
   const scaledW = rawW * currentScale;
@@ -561,29 +599,35 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
     stageWrap.scrollLeft = Math.max(0, stageSizer.offsetLeft + cx - stageWrap.clientWidth / 2);
     stageWrap.scrollTop = Math.max(0, stageSizer.offsetTop + cy - stageWrap.clientHeight / 2);
    } else {
-    stageWrap.scrollLeft = Math.max(0, (stageSizer.offsetWidth - stageWrap.clientWidth) / 2);
-    stageWrap.scrollTop = Math.max(0, (stageSizer.offsetHeight - stageWrap.clientHeight) / 2);
+    stageWrap.scrollLeft = 0;
+    stageWrap.scrollTop = 0;
    }
    positionPopup();
   });
  }
 
+ /* 表示領域のサイズ。レイアウト未確定で0や極小が返ったら画面サイズで代用 */
+ function wrapSize() {
+  let w = stageWrap.clientWidth, h = stageWrap.clientHeight;
+  if (!(w >= 120)) w = window.innerWidth || 390;
+  if (!(h >= 120)) h = (window.innerHeight || 700) - 100;
+  return { w, h };
+ }
+
  function fitStage() {
   focusedParentId = null;
   const { rawW, rawH } = stagePixelDims();
-  const wrapW = Math.max(200, stageWrap.clientWidth || window.innerWidth || 390);
-  const wrapH = Math.max(200, stageWrap.clientHeight || (window.innerHeight - 100) || 600);
+  const { w: wrapW, h: wrapH } = wrapSize();
   const scaleW = (wrapW - 32) / rawW;
   const scaleH = (wrapH - 44) / rawH;
-  const s = Math.max(0.2, Math.min(1, scaleW, scaleH));
+  const s = Math.max(0.1, Math.min(1, scaleW, scaleH));
   applyScale(s, null);
  }
 
  function focusParentCell(parentCell) {
   if (!parentCell || parentCell.kind !== 'parent') return;
   focusedParentId = parentCell.id;
-  const wrapW = Math.max(200, stageWrap.clientWidth || window.innerWidth || 390);
-  const wrapH = Math.max(200, stageWrap.clientHeight || (window.innerHeight - 100) || 600);
+  const { w: wrapW, h: wrapH } = wrapSize();
   const availW = Math.max(120, wrapW - 36);
   const availH = Math.max(120, wrapH - 130);
   const cellW = Math.max(20, parentCell.w * mm);
@@ -952,6 +996,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   selected = id;
   const handle = e.target.dataset.handle || null;
 
+  cellTouchedAt = Date.now();
   if (c.kind === 'parent') {
    render();
    syncPanel();
@@ -961,6 +1006,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    return;
   }
 
+  cellTouchedAt = Date.now();
   drag = {
    id, handle,
    scale: currentScale || 1,
@@ -1011,6 +1057,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  }
 
  function pointerUp() {
+  cellTouchedAt = Date.now();
   drag = null;
   window.removeEventListener('pointermove', pointerMove);
   render();
@@ -1179,7 +1226,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   }, 500);
  };
 
- paper.addEventListener('pointerdown', e => {
+ paper.addEventListener('click', e => {
+  if (Date.now() - cellTouchedAt < 400 || drag) return;
   if (e.target === paper || e.target === gridBg) {
    selected = null;
    render();
@@ -1200,7 +1248,14 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const today = new Date();
   $('createdDate').value = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
  }
- paperSetup();
+try {
+  paperSetup();
+ } catch (err) {
+  showError(err && err.message ? err.message : String(err));
+ }
+ requestAnimationFrame(() => { if (!focusedParentId) fitStage(); });
+ window.addEventListener('load', () => { if (!focusedParentId) fitStage(); });
+ window.addEventListener('orientationchange', () => setTimeout(() => { if (!focusedParentId) fitStage(); }, 300));
 })();
 </script>
 </body>
