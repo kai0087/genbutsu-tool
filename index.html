@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>現物表示マス編集（スマホ最適UI）</title>
 <style>
 :root {
@@ -26,6 +26,8 @@ html, body {
   color: #fff;
   overflow: hidden;
 }
+html, body { touch-action: pan-x pan-y; }
+.stage-wrap, .stage-wrap * { touch-action: none; }
 body {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -188,7 +190,10 @@ select, input[type=number], input[type=text] {
 .cell.child { z-index: 20 !important; border-style: solid; }
 .cell.image-object { z-index: 30 !important; }
 .cell.text-image { z-index: 40 !important; }
-.cell.selected { z-index: 45 !important; }
+.cell.parent.selected { z-index: 1 !important; }
+.cell.child.selected { z-index: 25 !important; }
+.cell.image-object.selected { z-index: 35 !important; }
+.cell.text-image.selected { z-index: 45 !important; }
 
 .cell-content {
   width: 100%;
@@ -537,8 +542,11 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const rows = isLandscape ? 2 : 3;
   const gapX = 5;
   const gapY = 5;
-  const cellW = Math.max(20, Math.round(((board.w - gapX * (cols + 1)) / cols) * 10) / 10);
-  const cellH = Math.max(20, Math.round(((board.h - gapY * (rows + 1)) / rows) * 10) / 10);
+  const floor5 = v => Math.floor(v / 5) * 5;
+  const cellW = Math.max(20, floor5((board.w - gapX * (cols + 1)) / cols));
+  const cellH = Math.max(20, floor5((board.h - gapY * (rows + 1)) / rows));
+  const offsetX = (board.w - (cols * cellW + gapX * (cols - 1))) / 2;
+  const offsetY = (board.h - (rows * cellH + gapY * (rows - 1))) / 2;
 
   const pageCapacity = cols * rows;
   const localIdx = slotIndex % pageCapacity;
@@ -546,8 +554,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const col = localIdx % cols;
   const row = Math.floor(localIdx / cols);
 
-  const x = Math.round((board.x + gapX + col * (cellW + gapX) + pageOffset) * 10) / 10;
-  const y = Math.round((board.y + gapY + row * (cellH + gapY) + pageOffset) * 10) / 10;
+  const x = Math.round((board.x + offsetX + col * (cellW + gapX) + pageOffset) * 10) / 10;
+  const y = Math.round((board.y + offsetY + row * (cellH + gapY) + pageOffset) * 10) / 10;
   return { x, y, w: cellW, h: cellH };
  }
 
@@ -582,7 +590,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   stage.style.width = rawW + 'px';
   stage.style.height = rawH + 'px';
 
-  const safeScale = Number.isFinite(scale) && scale > 0 ? Math.max(0.1, Math.min(4, scale)) : 0.5;
+  const safeScale = Number.isFinite(scale) && scale > 0 ? Math.max(0.1, Math.min(3, scale)) : 0.5;
   currentScale = safeScale;
 
   const scaledW = rawW * currentScale;
@@ -632,7 +640,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const availH = Math.max(120, wrapH - 130);
   const cellW = Math.max(20, parentCell.w * mm);
   const cellH = Math.max(20, parentCell.h * mm);
-  const s = Math.max(0.35, Math.min(3.5, availW / cellW, availH / cellH));
+  const s = Math.max(0.35, Math.min(2.5, availW / cellW, availH / cellH));
   applyScale(s, parentCell);
  }
 
@@ -932,14 +940,6 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    }
 
    el.addEventListener('pointerdown', pointerDown);
-   el.addEventListener('click', e => {
-    e.stopPropagation();
-    const wasSelected = selected === c.id;
-    selected = c.id;
-    render();
-    syncPanel();
-    if (c.kind === 'parent' && !wasSelected) focusParentCell(c);
-   });
    paper.appendChild(el);
   }
   gridBg.hidden = !$('gridView').checked;
@@ -989,38 +989,81 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   render();
  }
 
- function pointerDown(e) {
-  const id = +e.currentTarget.dataset.id, c = cells.find(c => c.id === id);
+ /* ---- 指の管理：1本＝マス操作／スクロール、2本＝用紙の拡大縮小 ---- */
+ const pointers = new Map();
+ let pinch = null, pan = null;
+ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) || 1;
+
+ function placeCellEl(c) {
+  const el = paper.querySelector(`.cell[data-id="${c.id}"]`);
+  if (!el) return;
+  const parent = c.parentId ? cells.find(p => p.id === c.parentId) : null;
+  el.style.left = (c.x + (parent ? parent.x : 0)) * mm + 'px';
+  el.style.top = (c.y + (parent ? parent.y : 0)) * mm + 'px';
+  el.style.width = c.w * mm + 'px';
+  el.style.height = c.h * mm + 'px';
+ }
+
+ function cancelDrag() {
+  if (!drag) return;
+  const c = cells.find(x => x.id === drag.id);
+  if (c) Object.assign(c, drag.orig);
+  drag = null;
+  render();
+ }
+
+ /* 指の中心点を動かさないまま倍率だけ変える */
+ function zoomAt(s, mx, my) {
+  s = Math.max(0.1, Math.min(3, s));
+  const r = stageWrap.getBoundingClientRect();
+  const px = (stageWrap.scrollLeft + mx - r.left - stageSizer.offsetLeft) / currentScale;
+  const py = (stageWrap.scrollTop + my - r.top - stageSizer.offsetTop) / currentScale;
+  const { rawW, rawH } = stagePixelDims();
+  currentScale = s;
+  stageSizer.style.width = rawW * s + 'px';
+  stageSizer.style.height = rawH * s + 'px';
+  stage.style.transform = 'scale(' + s + ')';
+  stageWrap.scrollLeft = stageSizer.offsetLeft + px * s - (mx - r.left);
+  stageWrap.scrollTop = stageSizer.offsetTop + py * s - (my - r.top);
+ }
+
+ function startPinch() {
+  cancelDrag();
+  pan = null;
+  focusedParentId = null;
+  const [a, b] = [...pointers.values()];
+  pinch = { d0: dist(a, b), s0: currentScale };
+  popup.hidden = true;
+ }
+
+ function tapSelect(id) {
+  const c = cells.find(x => x.id === id);
   if (!c) return;
-  const prevSelected = selected;
+  const was = selected === id;
   selected = id;
-  const handle = e.target.dataset.handle || null;
+  render();
+  syncPanel();
+  if (c.kind === 'parent' && (!was || focusedParentId !== id)) focusParentCell(c);
+ }
 
-  cellTouchedAt = Date.now();
-  if (c.kind === 'parent') {
-   render();
-   syncPanel();
-   if (prevSelected !== id) focusParentCell(c);
-   e.preventDefault();
-   e.stopPropagation();
-   return;
-  }
-
-  cellTouchedAt = Date.now();
+ /* 子マス・画像：押したらすぐ選択してドラッグ開始 */
+ function pointerDown(e) {
+  if (pointers.size >= 2) return;
+  const id = +e.currentTarget.dataset.id, c = cells.find(c => c.id === id);
+  if (!c || c.kind === 'parent') return; /* 親マスは「タップ」で選択 */
+  const changed = selected !== id;
+  selected = id;
   drag = {
-   id, handle,
+   id, pid: e.pointerId, handle: e.target.dataset.handle || null,
    scale: currentScale || 1,
    startX: e.clientX, startY: e.clientY,
    orig: { x: c.x, y: c.y, w: c.w, h: c.h },
    parent: c.parentId ? cells.find(p => p.id === c.parentId) : null
   };
   popup.hidden = true;
-  render();
-  syncPanel();
+  if (changed) { render(); syncPanel(); }
   e.preventDefault();
   e.stopPropagation();
-  window.addEventListener('pointermove', pointerMove);
-  window.addEventListener('pointerup', pointerUp, { once: true });
  }
 
  function pointerMove(e) {
@@ -1052,17 +1095,69 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    c.x = Math.max(0, Math.min(c.x, drag.parent.w - c.w));
    c.y = Math.max(0, Math.min(c.y, drag.parent.h - c.h));
   }
+  placeCellEl(c); /* 動かしている間は対象マスの位置だけ更新（全再描画しない） */
+ }
+
+ function pointerUp() {
+  drag = null;
   render();
   syncPanel();
  }
 
- function pointerUp() {
-  cellTouchedAt = Date.now();
-  drag = null;
-  window.removeEventListener('pointermove', pointerMove);
-  render();
-  syncPanel();
+ /* 用紙エリアの指の動きを一括で見る（キャプチャ段階） */
+ stageWrap.addEventListener('pointerdown', e => {
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 2) { startPinch(); return; }
+  if (pointers.size > 2) return;
+  const t = e.target;
+  if (t.closest && t.closest('input,select,button,label')) return;
+  const cellEl = t.closest ? t.closest('.cell') : null;
+  const c = cellEl ? cells.find(x => x.id === +cellEl.dataset.id) : null;
+  if (c && c.kind !== 'parent') return; /* 子マス・画像はドラッグ操作に任せる */
+  const blank = !c && (t === paper || t === gridBg || t === stageWrap || t === stageSizer || t === stage);
+  pan = { pid: e.pointerId, x0: e.clientX, y0: e.clientY, l0: stageWrap.scrollLeft, t0: stageWrap.scrollTop, moved: false, tapId: c ? c.id : null, blank };
+ }, true);
+
+ window.addEventListener('pointermove', e => {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && pointers.size >= 2) {
+   const [a, b] = [...pointers.values()];
+   zoomAt(pinch.s0 * dist(a, b) / pinch.d0, (a.x + b.x) / 2, (a.y + b.y) / 2);
+   return;
+  }
+  if (drag && e.pointerId === drag.pid) { pointerMove(e); return; }
+  if (pan && e.pointerId === pan.pid) {
+   const dx = e.clientX - pan.x0, dy = e.clientY - pan.y0;
+   if (!pan.moved) {
+    if (Math.hypot(dx, dy) < 8) return;
+    pan.moved = true;
+    popup.hidden = true;
+   }
+   stageWrap.scrollLeft = pan.l0 - dx;
+   stageWrap.scrollTop = pan.t0 - dy;
+  }
+ });
+
+ function onPointerEnd(e) {
+  pointers.delete(e.pointerId);
+  if (pinch) {
+   if (pointers.size < 2) { pinch = null; updateContextPopup(); }
+   return;
+  }
+  if (drag && e.pointerId === drag.pid) { pointerUp(); return; }
+  if (pan && e.pointerId === pan.pid) {
+   const p = pan;
+   pan = null;
+   if (p.moved) { updateContextPopup(); return; }
+   if (e.type !== 'pointerup') return;
+   if (p.tapId) tapSelect(p.tapId);
+   else if (p.blank) { selected = null; render(); syncPanel(); fitStage(); }
+  }
  }
+ window.addEventListener('pointerup', onPointerEnd);
+ window.addEventListener('pointercancel', onPointerEnd);
+ window.addEventListener('blur', () => { pointers.clear(); pinch = null; pan = null; cancelDrag(); });
+ ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
 
  function rotateSelectedImage(delta) {
   const c = selectedCell();
@@ -1226,15 +1321,6 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   }, 500);
  };
 
- paper.addEventListener('click', e => {
-  if (Date.now() - cellTouchedAt < 400 || drag) return;
-  if (e.target === paper || e.target === gridBg) {
-   selected = null;
-   render();
-   syncPanel();
-   fitStage();
-  }
- });
  stageWrap.addEventListener('scroll', positionPopup, { passive: true });
  window.addEventListener('resize', () => {
   if (focusedParentId) {
