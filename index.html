@@ -76,7 +76,7 @@ select, input[type=number], input[type=text] {
   color: #111;
 }
 
-/* ステージ領域（画面中央が標準位置・ピンチ拡大時はスクロール可能） */
+/* ステージ領域 */
 .stage-wrap {
   flex: 1;
   position: relative;
@@ -492,7 +492,55 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const [pw, ph] = dims();
   return { x: 0, y: ph * 0.10, w: pw, h: ph * 0.90 };
  }
- function parentDefaultSize() { return { w: 90, h: 85 }; }
+
+ /* 用紙の縦・横それぞれに応じた等間隔グリッドの定位置スロットを計算（横:3列×2行 / 縦:2列×3行） */
+ function getParentGridSlot(slotIndex) {
+  const board = boardBounds();
+  const isLandscape = get('orientation') === 'landscape';
+  const cols = isLandscape ? 3 : 2;
+  const rows = isLandscape ? 2 : 3;
+  const gapX = 5;
+  const gapY = 5;
+  const cellW = Math.round(((board.w - gapX * (cols + 1)) / cols) * 10) / 10;
+  const cellH = Math.round(((board.h - gapY * (rows + 1)) / rows) * 10) / 10;
+
+  const pageCapacity = cols * rows;
+  const localIdx = slotIndex % pageCapacity;
+  const pageOffset = Math.floor(slotIndex / pageCapacity) * 3;
+  const col = localIdx % cols;
+  const row = Math.floor(localIdx / cols);
+
+  const x = Math.round((board.x + gapX + col * (cellW + gapX) + pageOffset) * 10) / 10;
+  const y = Math.round((board.y + gapY + row * (cellH + gapY) + pageOffset) * 10) / 10;
+  return { x, y, w: cellW, h: cellH };
+ }
+
+ /* 既存親マスを現在の用紙・向きに合わせて定位置グリッドへ等間隔再配置 */
+ function relayoutParentsToGrid() {
+  const parents = cells.filter(c => c.kind === 'parent');
+  parents.forEach((p, idx) => {
+   const oldW = p.w || 1;
+   const oldH = p.h || 1;
+   const slot = getParentGridSlot(idx);
+   const scaleX = slot.w / oldW;
+   const scaleY = slot.h / oldH;
+
+   p.slotIndex = idx;
+   p.x = slot.x;
+   p.y = slot.y;
+   p.w = slot.w;
+   p.h = slot.h;
+
+   descendants(p.id).forEach(ch => {
+    ch.x = Math.round(ch.x * scaleX * 10) / 10;
+    ch.y = Math.round(ch.y * scaleY * 10) / 10;
+    ch.w = Math.max(5, Math.round(ch.w * scaleX * 10) / 10);
+    ch.h = Math.max(5, Math.round(ch.h * scaleY * 10) / 10);
+    ch.x = Math.max(0, Math.min(ch.x, p.w - ch.w));
+    ch.y = Math.max(0, Math.min(ch.y, p.h - ch.h));
+   });
+  });
+ }
 
  function paperSetup() {
   let [w, h] = dims();
@@ -500,6 +548,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   stage.style.height = (h * mm) + 'px';
   $('paperLabel').textContent = get('paperSize') + '・' + (get('orientation') === 'portrait' ? '縦' : '横') + '（' + w + '×' + h + 'mm）';
   $('sheetHeader').style.height = '10%';
+  relayoutParentsToGrid();
   render();
   fitStage();
  }
@@ -581,23 +630,29 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   return { x: 0, y: 0, w: cw, h: ch };
  }
 
+ /* 次の空いている定位置スロット番号を取得 */
+ function nextAvailableParentSlotIndex() {
+  const used = new Set(cells.filter(c => c.kind === 'parent' && typeof c.slotIndex === 'number').map(c => c.slotIndex));
+  let idx = 0;
+  while (used.has(idx)) idx++;
+  return idx;
+ }
+
  function addCell(kind, parentId = null) {
-  const board = boardBounds(), base = parentDefaultSize();
   const c = {
    id: nextId++, kind, parentId,
-   x: kind === 'child' ? 10 : 15,
-   y: kind === 'child' ? 10 : board.y + 10,
-   w: kind === 'child' ? Math.min(20, base.w - 5) : 90,
-   h: kind === 'child' ? 15 : 85,
+   x: 10, y: 10, w: 20, h: 15,
    text: kind === 'parent' ? '親マス' : '子マス',
    type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: 22
   };
   if (kind === 'parent') {
-   const n = cells.filter(x => x.kind === 'parent').length;
-   const cols = Math.max(1, Math.floor((board.w - 10) / 90));
-   c.x = board.x + 5 + (n % cols) * 90;
-   c.y = board.y + 5 + Math.floor(n / cols) * 85;
-   c.w = 90; c.h = 85;
+   const slotIdx = nextAvailableParentSlotIndex();
+   const slot = getParentGridSlot(slotIdx);
+   c.slotIndex = slotIdx;
+   c.x = slot.x;
+   c.y = slot.y;
+   c.w = slot.w;
+   c.h = slot.h;
   }
   if (parentId) {
    const p = cells.find(x => x.id === parentId);
@@ -610,7 +665,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   render();
   syncPanel();
   if (kind === 'parent') focusParentCell(c);
-  $('status').textContent = kind === 'child' ? '子マスを追加しました。' : '親マスを追加しました。';
+  $('status').textContent = kind === 'child' ? '子マスを追加しました。' : '親マスを定位置に追加しました。';
   return c;
  }
 
@@ -618,12 +673,21 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const parent = addCell('parent');
   if (!parent) return;
   parent.format = format;
+  const childH = Math.min(15, Math.round(parent.h * 0.2 * 10) / 10);
   const specs = format === 'assembly'
-   ? [{ x: 0, w: 20 }, { x: 20, w: 20 }, { x: 40, w: 30 }, { x: 70, w: 20 }]
-   : [{ x: 0, w: 20 }, { x: 20, w: 20 }];
+   ? [
+      { x: 0, w: Math.round(parent.w * (2 / 9) * 10) / 10 },
+      { x: Math.round(parent.w * (2 / 9) * 10) / 10, w: Math.round(parent.w * (2 / 9) * 10) / 10 },
+      { x: Math.round(parent.w * (4 / 9) * 10) / 10, w: Math.round(parent.w * (3 / 9) * 10) / 10 },
+      { x: Math.round(parent.w * (7 / 9) * 10) / 10, w: Math.round((parent.w - parent.w * (7 / 9)) * 10) / 10 }
+     ]
+   : [
+      { x: 0, w: Math.round(parent.w * (2 / 9) * 10) / 10 },
+      { x: Math.round(parent.w * (2 / 9) * 10) / 10, w: Math.round(parent.w * (2 / 9) * 10) / 10 }
+     ];
   specs.forEach(spec => cells.push({
    id: nextId++, kind: 'child', parentId: parent.id,
-   x: spec.x, y: 0, w: spec.w, h: 15,
+   x: spec.x, y: 0, w: spec.w, h: childH,
    text: '子マス', type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: 22
   }));
   selected = parent.id;
@@ -741,18 +805,32 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   else if (act === 'rotL') rotateSelectedImage(-90);
   else if (act === 'rotR') rotateSelectedImage(90);
   else if (act === 'dup') {
-   const copy = { ...c, id: nextId++, x: c.x + 10, y: c.y + 10 };
-   cells.push(copy);
    if (c.kind === 'parent') {
+    const slotIdx = nextAvailableParentSlotIndex();
+    const slot = getParentGridSlot(slotIdx);
+    const copy = { ...c, id: nextId++, slotIndex: slotIdx, x: slot.x, y: slot.y, w: slot.w, h: slot.h };
+    cells.push(copy);
     descendants(c.id).forEach(ch => cells.push({ ...ch, id: nextId++, parentId: copy.id }));
+    selected = copy.id;
+    render();
+    syncPanel();
+    focusParentCell(copy);
+   } else {
+    const parent = c.parentId ? cells.find(p => p.id === c.parentId) : null;
+    const spot = parent ? findEmptySpotInParent(parent, c.w, c.h) : { x: c.x + 10, y: c.y + 10, w: c.w, h: c.h };
+    const copy = { ...c, id: nextId++, x: spot.x, y: spot.y, w: spot.w, h: spot.h };
+    cells.push(copy);
+    selected = copy.id;
+    render();
+    syncPanel();
    }
-   selected = copy.id;
-   render();
-   syncPanel();
-   if (copy.kind === 'parent') focusParentCell(copy);
   } else if (act === 'del') {
+   const wasParent = c.kind === 'parent';
    cells = cells.filter(x => x.id !== c.id && x.parentId !== c.id);
    selected = null;
+   if (wasParent) {
+    relayoutParentsToGrid();
+   }
    render();
    syncPanel();
    fitStage();
@@ -809,7 +887,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    }
    el.appendChild(content);
 
-   if (c.id === selected) {
+   /* 親マスは定位置ロック仕様のためリサイズハンドルを出さず、子マス・画像のみハンドル表示 */
+   if (c.id === selected && c.kind !== 'parent') {
     ['nw', 'ne', 'sw', 'se'].forEach(pos => {
      const h = document.createElement('i');
      h.className = 'handle ' + pos;
@@ -839,11 +918,14 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const c = selectedCell();
   if (!c) { $('imageRotateControls').hidden = true; return; }
   const isImg = c.kind === 'image';
+  const isParent = c.kind === 'parent';
   $('imageRotateControls').hidden = !(isImg && !!c.contentData);
   $('textFieldWrap').hidden = isImg;
   $('fontSizeFieldWrap').hidden = isImg;
-  $('editSheetTitle').textContent = (c.kind === 'parent' ? '親マス' : c.kind === 'child' ? '子マス' : (c.type === 'textImage' ? '文字画像' : '画像')) + 'の編集';
-  set('kindLabel', c.kind === 'parent' ? '親マス（' + (c.format === 'assembly' ? '部品＋ボルト・ナット' : '部品単品') + '）' : c.kind === 'child' ? '子マス' : c.type === 'textImage' ? '文字画像' : '画像');
+  $('w').readOnly = isParent;
+  $('h').readOnly = isParent;
+  $('editSheetTitle').textContent = (isParent ? '親マス' : c.kind === 'child' ? '子マス' : (c.type === 'textImage' ? '文字画像' : '画像')) + 'の編集';
+  set('kindLabel', isParent ? '親マス（定位置グリッド・' + (c.format === 'assembly' ? '部品＋ボルト・ナット' : '部品単品') + '）' : c.kind === 'child' ? '子マス' : c.type === 'textImage' ? '文字画像' : '画像');
   set('w', Math.round(c.w));
   set('h', Math.round(c.h));
   set('bg', c.bg === 'transparent' ? '#ffffff' : c.bg);
@@ -855,9 +937,11 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  function updateFromPanel(e) {
   const c = selectedCell();
   if (!c) return;
-  const minSize = c.kind === 'child' ? 5 : 10;
-  c.w = Math.max(minSize, +get('w') || minSize);
-  c.h = Math.max(minSize, +get('h') || minSize);
+  if (c.kind !== 'parent') {
+   const minSize = c.kind === 'child' ? 5 : 10;
+   c.w = Math.max(minSize, +get('w') || minSize);
+   c.h = Math.max(minSize, +get('h') || minSize);
+  }
   if (c.bg !== 'transparent' || (e && e.target && e.target.id === 'bg')) c.bg = get('bg');
   c.fontSize = +get('fontSize') || 16;
   c.text = get('cellText');
@@ -883,6 +967,19 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const prevSelected = selected;
   selected = id;
   const handle = e.target.dataset.handle || null;
+
+  /* 親マスは定位置ロック仕様のため選択・ズームのみ行い、ドラッグ移動はさせない */
+  if (c.kind === 'parent') {
+   render();
+   syncPanel();
+   if (prevSelected !== id) {
+    focusParentCell(c);
+   }
+   e.preventDefault();
+   e.stopPropagation();
+   return;
+  }
+
   drag = {
    id, handle,
    scale: getStageScale(),
@@ -893,9 +990,6 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   popup.hidden = true;
   render();
   syncPanel();
-  if (c.kind === 'parent' && prevSelected !== id) {
-   focusParentCell(c);
-  }
   e.preventDefault();
   e.stopPropagation();
   window.addEventListener('pointermove', pointerMove);
@@ -969,7 +1063,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   }
   const reader = new FileReader();
   reader.onload = () => {
-   const spot = findEmptySpotInParent(parent, 60, 45);
+   const spot = findEmptySpotInParent(parent, Math.round(parent.w * 0.65), Math.round(parent.h * 0.55));
    const c = {
     id: nextId++, kind: 'image', parentId: parent.id,
     x: spot.x, y: spot.y, w: spot.w, h: spot.h,
@@ -990,139 +1084,4 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   $('textImageValue').value = c ? (c.text || '') : '';
   $('textImageColor').value = c ? (c.textColor || '#111111') : '#111111';
   $('textImageSize').value = c ? (c.fontSize || 22) : 22;
-  $('textImageClearBg').checked = !c || c.bg === 'transparent';
-  $('textImageBg').value = c && c.textImageBg ? c.textImageBg : '#ffffff';
-  $('textImageBgField').hidden = $('textImageClearBg').checked;
-  $('textImageTitle').textContent = c ? '文字画像の編集' : '文字画像の作成';
-  $('confirmTextImage').textContent = c ? '変更を反映' : '挿入';
-  $('textImageDialog').hidden = false;
-  $('textImageValue').focus();
- }
-
- $('addTextImage').onclick = () => {
-  const current = selectedCell();
-  if (current && current.type === 'textImage') { openTextImageDialog(current); return; }
-  if (!current || current.kind !== 'parent') {
-   alert('文字画像を配置する親マスを選択してから挿入してください。');
-   return;
-  }
-  openTextImageDialog();
- };
- $('textImageClearBg').onchange = () => { $('textImageBgField').hidden = $('textImageClearBg').checked; };
- $('cancelTextImage').onclick = () => { $('textImageDialog').hidden = true; textImageEditId = null; };
- $('confirmTextImage').onclick = () => {
-  const value = get('textImageValue').trim();
-  if (!value) { alert('文字を入力してください。'); return; }
-  const color = get('textImageColor');
-  const size = Math.max(8, Math.min(120, Number(get('textImageSize')) || 22));
-  const clearBg = $('textImageClearBg').checked;
-  const bg = clearBg ? null : get('textImageBg');
-  const data = makeTextImage(value, color, size, clearBg, bg || '#ffffff');
-  const measure = document.createElement('canvas').getContext('2d');
-  measure.font = `bold ${size}px sans-serif`;
-  const imageW = Math.max(20, Math.ceil(measure.measureText(value).width + 24));
-  const imageH = Math.max(30, Math.ceil(size * 1.8));
-
-  if (textImageEditId !== null) {
-   const c = cells.find(x => x.id === textImageEditId);
-   if (c) {
-    c.text = value; c.textColor = color; c.fontSize = size;
-    c.bg = 'transparent';
-    c.textImageBg = bg; c.contentData = data;
-   }
-   selected = textImageEditId;
-  } else {
-   const parent = selectedCell();
-   if (!parent || parent.kind !== 'parent') { alert('配置先の親マスを選択してください。'); return; }
-   const spot = findEmptySpotInParent(parent, Math.max(30, imageW / mm), Math.max(15, imageH / mm));
-   const c = {
-    id: nextId++, kind: 'image', type: 'textImage', parentId: parent.id,
-    x: spot.x, y: spot.y, w: spot.w, h: spot.h,
-    text: value, contentData: data, rotation: 0,
-    bg: 'transparent', textColor: color, fontSize: size, textImageBg: bg
-   };
-   cells.push(c);
-   selected = c.id;
-  }
-  textImageEditId = null;
-  $('textImageDialog').hidden = true;
-  render();
-  syncPanel();
- };
-
- $('resetZoom').onclick = () => { fitStage(); };
- $('openSettings').onclick = () => { $('settingsSheet').hidden = false; };
- document.querySelectorAll('.sheet-close').forEach(btn => {
-  btn.onclick = () => { $(btn.dataset.close).hidden = true; };
- });
- document.querySelectorAll('.sheet-backdrop').forEach(bg => {
-  bg.addEventListener('click', e => { if (e.target === bg) bg.hidden = true; });
- });
-
- $('paperSize').onchange = paperSetup;
- $('orientation').onchange = paperSetup;
- $('gridToggle').onchange = () => { $('status').textContent = $('gridToggle').checked ? '5mm単位の吸着を有効にしました。' : '自由配置にしました。'; };
- $('gridView').onchange = () => { gridBg.hidden = !$('gridView').checked; };
- $('phonePortrait').onclick = () => { document.body.classList.add('phone-app'); fitStage(); };
- $('phoneLandscape').onclick = () => { set('orientation', 'landscape'); paperSetup(); };
- $('fitDesktop').onclick = () => { document.body.classList.remove('phone-app'); stage.style.transform = ''; stageSizer.style.width = ''; stageSizer.style.height = ''; positionPopup(); };
-
- $('print').onclick = () => {
-  const prevSelected = selected;
-  selected = null;
-  render();
-  const [pw, ph] = dims();
-  const contentBounds = cells.reduce((b, c) => {
-   let x = c.x, y = c.y;
-   if (c.parentId) { const p = cells.find(p => p.id === c.parentId); if (p) { x += p.x; y += p.y; } }
-   return { x: Math.min(b.x, x), y: Math.min(b.y, y), r: Math.max(b.r, x + c.w), b: Math.max(b.b, y + c.h) };
-  }, { x: 0, y: 0, r: 0, b: 0 });
-  const scale = Math.min((pw - 16) / (contentBounds.r - contentBounds.x || 1), (ph - 16) / (contentBounds.b - contentBounds.y || 1), 1);
-  if ($('fitPrint').checked) {
-   stage.style.width = pw * mm + 'px';
-   stage.style.height = ph * mm + 'px';
-   paper.style.transformOrigin = 'top left';
-   paper.style.transform = 'scale(' + scale + ')';
-   paper.style.width = pw * mm + 'px';
-   paper.style.height = ph * mm + 'px';
-  }
-  window.print();
-  setTimeout(() => {
-   paper.style.transform = ''; paper.style.width = ''; paper.style.height = '';
-   selected = prevSelected;
-   render();
-   if (focusedParentId) {
-    const p = cells.find(x => x.id === focusedParentId);
-    if (p) { focusParentCell(p); return; }
-   }
-   fitStage();
-  }, 500);
- };
-
- paper.addEventListener('pointerdown', e => {
-  if (e.target === paper || e.target === gridBg) {
-   selected = null;
-   render();
-   syncPanel();
-   fitStage();
-  }
- });
- stageWrap.addEventListener('scroll', positionPopup, { passive: true });
- window.addEventListener('resize', () => {
-  if (focusedParentId) {
-   const p = cells.find(x => x.id === focusedParentId);
-   if (p) { focusParentCell(p); return; }
-  }
-  fitStage();
- });
- if (!$('createdDate').value) {
-  const today = new Date();
-  $('createdDate').value = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
- }
- paperSetup();
- render();
- syncPanel();
-})();
-</script>
-</body>
-</html>
+  $('textImageClearBg').checked = !
