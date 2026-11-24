@@ -133,6 +133,8 @@ select, input[type=number], input[type=text] {
   word-break: break-all;
 }
 #errorBanner[hidden] { display: none; }
+#updateBanner { position: fixed; left: 8px; right: 8px; top: 54px; z-index: 2000; background: #1f6feb; color: #fff; font-size: 13px; font-weight: 700; text-align: center; padding: 10px; border-radius: 8px; }
+#updateBanner[hidden] { display: none; }
 
 /* 用紙ヘッダー */
 .sheet-header {
@@ -343,8 +345,17 @@ select, input[type=number], input[type=text] {
 .sheet-actions button.primary { color: #fff; background: var(--accent); border-color: var(--accent); }
 small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; margin-top: 4px; }
 
+/* カラー設定メニュー */
+.color-options { display: grid; gap: 8px; }
+.color-opt { display: flex; align-items: center; gap: 12px; min-height: 48px; font-size: 16px; font-weight: 700; text-align: left; }
+.color-opt::before { content: ""; width: 28px; height: 28px; border-radius: 6px; border: 1px solid #888; background: var(--c); flex: 0 0 auto; }
+.color-opt[aria-pressed="true"] { outline: 3px solid #1f6feb; }
+.cell.parent.free { z-index: 10 !important; }
+.cell.parent.free.selected { z-index: 10 !important; }
+
 /* 印刷時 */
 @media print {
+  #stage, #paper { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { height: auto !important; overflow: visible !important; background: #fff !important; color: #111 !important; display: block !important; position: static !important; }
   .stage-area { display: block !important; position: static !important; }
   .stage-sizer { position: static !important; margin: 0 !important; }
@@ -390,6 +401,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 </section>
 </div>
 <div id="errorBanner" hidden></div>
+<div id="updateBanner" hidden onclick="location.reload()">新しいバージョンがあります。ここをタップして更新</div>
 
 <!-- 選択マスの種類に応じて切り替わるフローティング・ポップアップ -->
 <div id="contextPopup" class="context-popup" hidden></div>
@@ -397,8 +409,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 <!-- 下部固定ツールバー -->
 <nav class="bottom-bar">
   <button type="button" class="primary" id="addParent">＋ 親マス</button>
-  <button type="button" id="addImage">＋ 画像</button>
-  <button type="button" id="addTextImage">＋ 文字画像</button>
+  <button type="button" id="addFree">＋ フリーマス</button>
+  <button type="button" id="colorSetting">カラー設定</button>
   <input id="imageFile" type="file" accept="image/*" hidden>
 </nav>
 
@@ -419,6 +431,22 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
     <div class="sheet-actions">
       <button type="button" id="cancelParent">キャンセル</button>
       <button type="button" class="primary" id="confirmParent">追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- カラー設定（印刷時の余白の色） -->
+<div id="colorDialog" class="sheet-backdrop center-dialog" hidden>
+  <div class="bottom-sheet">
+    <div class="sheet-head">
+      <h3>カラー設定（余白の色）</h3>
+      <button type="button" class="sheet-close" data-close="colorDialog">閉じる</button>
+    </div>
+    <div class="color-options" id="colorOptions">
+      <button type="button" class="color-opt" data-color="L4" style="--c:#4caf50">L4　緑</button>
+      <button type="button" class="color-opt" data-color="V6" style="--c:#3b82f6">V6　青</button>
+      <button type="button" class="color-opt" data-color="GD" style="--c:#e5484d">GD　赤</button>
+      <button type="button" class="color-opt" data-color="none" style="--c:#ffffff">なし（白）</button>
     </div>
   </div>
 </div>
@@ -468,7 +496,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
         <button type="button" id="rotateRight" style="color:#111;background:#f3f4f6;border-color:#bbb;">右へ90°</button>
       </div>
     </div>
-    <div class="field" id="fontSizeFieldWrap"><label for="fontSize">文字サイズ（px）</label><input id="fontSize" type="number" min="8" max="120" value="22"></div>
+    <div class="field" id="fontSizeFieldWrap"><label for="fontSize">文字サイズ（px）</label><input id="fontSize" type="number" min="8" max="120" value="28"></div>
     <div class="field"><label><input id="lockRatio" type="checkbox"> 縦横比を固定（写真用）</label></div>
     <small class="help">幅・高さはmm相当の編集単位です。入力すると即時反映します。</small>
   </div>
@@ -583,7 +611,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  }
 
  function relayoutParentsToGrid() {
-  const parents = cells.filter(c => c.kind === 'parent');
+  const parents = cells.filter(c => c.kind === 'parent' && !c.free);
   parents.forEach((p, idx) => {
    const oldW = p.w || 1;
    const oldH = p.h || 1;
@@ -675,6 +703,10 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   $('paperLabel').textContent = `${get('paperSize')}・${get('orientation') === 'portrait' ? '縦' : '横'}（${w}×${h}mm）`;
   $('sheetHeader').style.height = '10%';
   relayoutParentsToGrid();
+  cells.filter(c => c.free).forEach(c => {
+   c.x = Math.max(0, Math.min(c.x, w - c.w));
+   c.y = Math.max(0, Math.min(c.y, h - c.h));
+  });
   render();
   fitStage();
  }
@@ -706,7 +738,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  }
 
  function nextAvailableParentSlotIndex() {
-  const used = new Set(cells.filter(c => c.kind === 'parent' && typeof c.slotIndex === 'number').map(c => c.slotIndex));
+  const used = new Set(cells.filter(c => c.kind === 'parent' && !c.free && typeof c.slotIndex === 'number').map(c => c.slotIndex));
   let idx = 0;
   while (used.has(idx)) idx++;
   return idx;
@@ -717,7 +749,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    id: nextId++, kind, parentId,
    x: 5, y: 5, w: 20, h: 15,
    text: kind === 'parent' ? '親マス' : '子マス',
-   type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: 20
+   type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: kind === 'child' ? 28 : 20
   };
   if (kind === 'parent') {
    const slotIdx = nextAvailableParentSlotIndex();
@@ -758,12 +790,45 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   specs.forEach(spec => cells.push({
    id: nextId++, kind: 'child', parentId: parent.id,
    x: spec.x, y: 0, w: spec.w, h: childH,
-   text: '子マス', type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: 18
+   text: '子マス', type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: 28
   }));
   selected = parent.id;
   render();
   syncPanel();
   focusParentCell(parent);
+ }
+
+ /* ---- カラー設定：用紙の余白（マスの外側）の色 ---- */
+ const PAPER_COLORS = {
+  L4: '#4caf50',   /* 緑 */
+  V6: '#3b82f6',   /* 青 */
+  GD: '#e5484d',   /* 赤 */
+  none: '#ffffff'  /* 白（色なし） */
+ };
+ let paperColorKey = 'none';
+ function applyPaperColor() {
+  const col = PAPER_COLORS[paperColorKey] || '#ffffff';
+  paper.style.background = col;
+  stage.style.background = col;
+  document.querySelectorAll('.color-opt').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color === paperColorKey)));
+ }
+
+ /* ---- フリーマス：用紙のどこにでも置ける・大きさも自由な枠。中に子マス・画像・文字画像を自由に配置 ---- */
+ function addFreeCell() {
+  const [pw, ph] = dims();
+  const n = cells.filter(c => c.free).length;
+  const w = Math.min(60, pw), h = Math.min(40, ph * 0.9);
+  const c = {
+   id: nextId++, kind: 'parent', free: true, parentId: null, format: 'free',
+   x: Math.round(Math.min(5 + n * 5, Math.max(0, pw - w)) * 10) / 10,
+   y: Math.round(Math.min(ph * 0.10 + 5 + n * 5, Math.max(0, ph - h)) * 10) / 10,
+   w, h, text: '', type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: 28
+  };
+  cells.push(c);
+  selected = c.id;
+  render();
+  syncPanel();
+  focusParentCell(c);
  }
 
  function descendants(id) { return cells.filter(c => c.parentId === id); }
@@ -800,7 +865,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   let html = '';
   if (c.kind === 'parent') {
    html = `
-    <span class="badge">親マス</span>
+    <span class="badge">${c.free ? 'フリーマス' : '親マス'}</span>
+    ${c.free ? '<button type="button" data-act="zoom">ズーム</button>' : ''}
     <button type="button" class="primary" data-act="addChild">＋子マス</button>
     <button type="button" data-act="addImg">＋画像</button>
     <button type="button" data-act="addTxtImg">＋文字画像</button>
@@ -869,6 +935,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 
   const tp = targetParent();
   if (act === 'toParent') { if (tp) { selected = tp.id; render(); syncPanel(); focusParentCell(tp); } }
+  else if (act === 'zoom') { if (tp) focusParentCell(tp); }
   else if (act === 'addChild') { if (tp) addCell('child', tp.id); }
   else if (act === 'addImg') $('imageFile').click();
   else if (act === 'addTxtImg') openTextImageDialog();
@@ -877,7 +944,15 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   else if (act === 'rotL') rotateSelectedImage(-90);
   else if (act === 'rotR') rotateSelectedImage(90);
   else if (act === 'dup') {
-   if (c.kind === 'parent') {
+   if (c.kind === 'parent' && c.free) {
+    const copy = { ...c, id: nextId++, x: c.x + 5, y: c.y + 5 };
+    cells.push(copy);
+    descendants(c.id).forEach(ch => cells.push({ ...ch, id: nextId++, parentId: copy.id }));
+    selected = copy.id;
+    render();
+    syncPanel();
+    focusParentCell(copy);
+   } else if (c.kind === 'parent') {
     const slotIdx = nextAvailableParentSlotIndex();
     const slot = getParentGridSlot(slotIdx);
     const copy = { ...c, id: nextId++, slotIndex: slotIdx, x: slot.x, y: slot.y, w: slot.w, h: slot.h };
@@ -909,11 +984,11 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 
  function render() {
   paper.querySelectorAll('.cell').forEach(e => e.remove());
-  const layer = c => c.kind === 'parent' ? 1 : c.kind === 'child' ? 20 : (c.type === 'textImage' ? 40 : 30);
+  const layer = c => c.kind === 'parent' ? (c.free ? 10 : 1) : c.kind === 'child' ? 20 : (c.type === 'textImage' ? 40 : 30);
   const sorted = [...cells].sort((a, b) => layer(a) - layer(b));
 
   for (const c of sorted) {
-   const cls = c.kind === 'parent' ? 'parent' : c.kind === 'child' ? 'child' : (c.type === 'textImage' ? 'text-image' : 'image-object');
+   const cls = c.kind === 'parent' ? (c.free ? 'parent free' : 'parent') : c.kind === 'child' ? 'child' : (c.type === 'textImage' ? 'text-image' : 'image-object');
    const el = document.createElement('div');
    el.className = 'cell ' + cls + (c.id === selected ? ' selected' : '');
    el.dataset.id = c.id;
@@ -953,11 +1028,11 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
     content.style.position = 'relative';
     content.appendChild(img);
    } else {
-    content.textContent = c.text || (c.kind === 'child' ? '子マス' : '親マス');
+    content.textContent = c.text || (c.kind === 'child' ? '子マス' : (c.free ? '' : '親マス'));
    }
    el.appendChild(content);
 
-   if (c.id === selected && c.kind !== 'parent') {
+   if (c.id === selected && (c.kind !== 'parent' || c.free)) {
     ['nw', 'ne', 'sw', 'se'].forEach(pos => {
      const h = document.createElement('i');
      h.className = 'handle ' + pos;
@@ -979,13 +1054,14 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   if (!c) { $('imageRotateControls').hidden = true; return; }
   const isImg = c.kind === 'image';
   const isParent = c.kind === 'parent';
+  const isFree = !!c.free;
   $('imageRotateControls').hidden = !(isImg && !!c.contentData);
-  $('textFieldWrap').hidden = isImg;
-  $('fontSizeFieldWrap').hidden = isImg;
-  $('w').readOnly = isParent;
-  $('h').readOnly = isParent;
-  $('editSheetTitle').textContent = (isParent ? '親マス' : c.kind === 'child' ? '子マス' : (c.type === 'textImage' ? '文字画像' : '画像')) + 'の編集';
-  set('kindLabel', isParent ? '親マス（定位置グリッド・' + (c.format === 'assembly' ? '部品＋ボルト・ナット' : '部品単品') + '）' : c.kind === 'child' ? '子マス' : c.type === 'textImage' ? '文字画像' : '画像');
+  $('textFieldWrap').hidden = isImg || isFree;
+  $('fontSizeFieldWrap').hidden = isImg || isFree;
+  $('w').readOnly = isParent && !isFree;
+  $('h').readOnly = isParent && !isFree;
+  $('editSheetTitle').textContent = (isFree ? 'フリーマス' : isParent ? '親マス' : c.kind === 'child' ? '子マス' : (c.type === 'textImage' ? '文字画像' : '画像')) + 'の編集';
+  set('kindLabel', isFree ? 'フリーマス（自由配置）' : isParent ? '親マス（定位置グリッド・' + (c.format === 'assembly' ? '部品＋ボルト・ナット' : '部品単品') + '）' : c.kind === 'child' ? '子マス' : c.type === 'textImage' ? '文字画像' : '画像');
   set('w', Math.round(c.w));
   set('h', Math.round(c.h));
   set('bg', c.bg === 'transparent' ? '#ffffff' : c.bg);
@@ -997,7 +1073,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  function updateFromPanel(e) {
   const c = selectedCell();
   if (!c) return;
-  if (c.kind !== 'parent') {
+  if (c.kind !== 'parent' || c.free) {
    const minSize = c.kind === 'child' ? 5 : 10;
    c.w = Math.max(minSize, +get('w') || minSize);
    c.h = Math.max(minSize, +get('h') || minSize);
@@ -1079,7 +1155,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  function pointerDown(e) {
   if (pointers.size >= 2) return;
   const id = +e.currentTarget.dataset.id, c = cells.find(c => c.id === id);
-  if (!c || c.kind === 'parent') return; /* 親マスは「タップ」で選択 */
+  if (!c || (c.kind === 'parent' && !c.free)) return; /* 親マスは「タップ」で選択 */
   const changed = selected !== id;
   selected = id;
   drag = {
@@ -1123,11 +1199,25 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   if (drag.parent) {
    c.x = Math.max(0, Math.min(c.x, drag.parent.w - c.w));
    c.y = Math.max(0, Math.min(c.y, drag.parent.h - c.h));
+  } else if (c.free) {
+   const [pw, ph] = dims();
+   c.x = Math.max(0, Math.min(c.x, pw - c.w));
+   c.y = Math.max(0, Math.min(c.y, ph - c.h));
   }
-  placeCellEl(c); /* 動かしている間は対象マスの位置だけ更新（全再描画しない） */
+  placeCellEl(c);
+  if (c.free) descendants(c.id).forEach(placeCellEl); /* 動かしている間は対象マスの位置だけ更新（全再描画しない） */
  }
 
  function pointerUp() {
+  const dc = drag ? cells.find(x => x.id === drag.id) : null;
+  if (dc && dc.free) {
+   /* 枠を小さくした時、中身が枠からはみ出さないよう収める */
+   descendants(dc.id).forEach(ch => {
+    ch.w = Math.min(ch.w, dc.w); ch.h = Math.min(ch.h, dc.h);
+    ch.x = Math.max(0, Math.min(ch.x, dc.w - ch.w));
+    ch.y = Math.max(0, Math.min(ch.y, dc.h - ch.h));
+   });
+  }
   drag = null;
   render();
   syncPanel();
@@ -1142,7 +1232,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   if (t.closest && t.closest('input,select,button,label')) return;
   const cellEl = t.closest ? t.closest('.cell') : null;
   const c = cellEl ? cells.find(x => x.id === +cellEl.dataset.id) : null;
-  if (c && c.kind !== 'parent') return; /* 子マス・画像はドラッグ操作に任せる */
+  if (c && (c.kind !== 'parent' || c.free)) return; /* 子マス・画像・フリーマスはドラッグ操作に任せる */
   const blank = !c && (t === paper || t === gridBg || t === stageWrap || t === stageSizer || t === stage);
   pan = { pid: e.pointerId, x0: e.clientX, y0: e.clientY, l0: stageWrap.scrollLeft, t0: stageWrap.scrollTop, moved: false, tapId: c ? c.id : null, blank };
  }, true);
@@ -1220,7 +1310,15 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 
  fields.forEach(id => $(id).addEventListener('input', updateFromPanel));
 
- $('addImage').onclick = () => { $('imageFile').click(); };
+ $('addFree').onclick = () => { addFreeCell(); };
+ $('colorSetting').onclick = () => { applyPaperColor(); $('colorDialog').hidden = false; };
+ $('colorOptions').addEventListener('click', e => {
+  const b = e.target.closest('button[data-color]');
+  if (!b) return;
+  paperColorKey = b.dataset.color;
+  applyPaperColor();
+  $('colorDialog').hidden = true;
+ });
  $('rotateLeft').onclick = () => rotateSelectedImage(-90);
  $('rotateRight').onclick = () => rotateSelectedImage(90);
 
@@ -1235,10 +1333,14 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   }
   const reader = new FileReader();
   reader.onload = () => {
-   const spot = findEmptySpotInParent(parent, Math.round(parent.w * 0.65), Math.round(parent.h * 0.55));
+   /* 幅95×高さ70mm。親マスより大きい時は親マスに収める。下枠を0点として下に揃え、左右は中央 */
+   const imgW = Math.min(95, parent.w);
+   const imgH = Math.min(70, parent.h);
    const c = {
     id: nextId++, kind: 'image', parentId: parent.id,
-    x: spot.x, y: spot.y, w: spot.w, h: spot.h,
+    x: Math.round(((parent.w - imgW) / 2) * 10) / 10,
+    y: Math.round((parent.h - imgH) * 10) / 10,
+    w: imgW, h: imgH,
     text: file.name, contentData: reader.result, rotation: 0,
     bg: 'transparent', textColor: '#111111', fontSize: 22
    };
@@ -1251,13 +1353,6 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   e.target.value = '';
  };
 
- $('addTextImage').onclick = () => {
-  if (!targetParent()) {
-   alert('文字画像を配置する親マスを選択してから挿入してください。');
-   return;
-  }
-  openTextImageDialog();
- };
  $('textImageClearBg').onchange = () => { $('textImageBgField').hidden = $('textImageClearBg').checked; };
  $('cancelTextImage').onclick = () => { $('textImageDialog').hidden = true; textImageEditId = null; };
  $('confirmTextImage').onclick = () => {
@@ -1373,7 +1468,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const today = new Date();
   $('createdDate').value = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-');
  }
-try {
+applyPaperColor();
+ try {
   paperSetup();
  } catch (err) {
   showError(err && err.message ? err.message : String(err));
@@ -1381,6 +1477,19 @@ try {
  requestAnimationFrame(() => { if (!focusedParentId) fitStage(); });
  window.addEventListener('load', () => { if (!focusedParentId) fitStage(); });
  window.addEventListener('orientationchange', () => setTimeout(() => { if (!focusedParentId) fitStage(); }, 300));
+
+ /* オフライン対応：Service Worker（https または localhost でのみ動作。それ以外では何もしない） */
+ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', () => {
+   navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+  navigator.serviceWorker.addEventListener('message', ev => {
+   if (ev.data === 'updated') {
+    const u = document.getElementById('updateBanner');
+    if (u) u.hidden = false;
+   }
+  });
+ }
 })();
 </script>
 </body>
