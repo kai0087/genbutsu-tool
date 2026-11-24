@@ -171,7 +171,6 @@ select, input[type=number], input[type=text] {
 /* マス（セル）とレイヤー順 */
 .cell {
   position: absolute;
-  border: 1.5px solid #222;
   background: #fff;
   min-width: 5px;
   min-height: 5px;
@@ -186,8 +185,9 @@ select, input[type=number], input[type=text] {
   outline: 2.5px solid var(--accent);
   outline-offset: 1px;
 }
+.border-layer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 44; }
 .cell.parent { background: #fff; z-index: 1 !important; }
-.cell.child { z-index: 20 !important; border-style: solid; }
+.cell.child { z-index: 20 !important; }
 .cell.image-object { z-index: 30 !important; }
 .cell.text-image { z-index: 40 !important; }
 .cell.parent.selected { z-index: 1 !important; }
@@ -383,6 +383,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
           <label>作成日 <input id="createdDate" type="date"></label>
         </div>
         <div class="grid-bg" id="gridBg" hidden></div>
+        <svg class="border-layer" id="borderLayer" aria-hidden="true"><path id="borderPath" fill="none" stroke="#222" stroke-width="1.5" stroke-linejoin="miter"/></svg>
       </div>
     </div>
   </div>
@@ -517,6 +518,28 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  const get = id => $(id).value;
  const set = (id, v) => $(id).value = v;
  const selectedCell = () => cells.find(c => c.id === selected);
+
+ /* 操作対象の親マス：親マス選択中ならそれ自身、子マス・画像選択中ならその持ち主の親 */
+ const targetParent = () => {
+  const c = selectedCell();
+  if (!c) return null;
+  if (c.kind === 'parent') return c;
+  return c.parentId ? (cells.find(p => p.id === c.parentId) || null) : null;
+ };
+
+ /* 全マスの枠線を1本のパスにまとめて描く（重なっても・隣り合っても1本線になる） */
+ function drawBorders() {
+  let d = '';
+  for (const c of cells) {
+   if (c.type === 'textImage') continue;
+   const p = c.parentId ? cells.find(q => q.id === c.parentId) : null;
+   const x = (c.x + (p ? p.x : 0)) * mm, y = (c.y + (p ? p.y : 0)) * mm;
+   const w = c.w * mm, h = c.h * mm;
+   d += 'M' + x + ' ' + y + 'h' + w + 'v' + h + 'h' + (-w) + 'z';
+  }
+  const path = document.getElementById('borderPath');
+  if (path) path.setAttribute('d', d);
+ }
 
  function dims() {
   let [w, h] = sizes[get('paperSize')] || sizes.A4;
@@ -788,6 +811,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   } else if (c.kind === 'child') {
    html = `
     <span class="badge">子マス</span>
+    <button type="button" data-act="toParent">↑親マス</button>
     <button type="button" class="primary" data-act="edit">文字・サイズ編集</button>
     <button type="button" data-act="dup">複製</button>
     <button type="button" class="danger" data-act="del">削除</button>
@@ -796,6 +820,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    const isTextImg = c.type === 'textImage';
    html = `
     <span class="badge">${isTextImg ? '文字画像' : '画像'}</span>
+    <button type="button" data-act="toParent">↑親マス</button>
     ${isTextImg
       ? `<button type="button" class="primary" data-act="editTextImg">文言・色編集</button>`
       : `<button type="button" data-act="rotL">↺90°</button><button type="button" data-act="rotR">↻90°</button>`}
@@ -842,7 +867,9 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   if (!c) return;
   const act = btn.dataset.act;
 
-  if (act === 'addChild') addCell('child', c.id);
+  const tp = targetParent();
+  if (act === 'toParent') { if (tp) { selected = tp.id; render(); syncPanel(); focusParentCell(tp); } }
+  else if (act === 'addChild') { if (tp) addCell('child', tp.id); }
   else if (act === 'addImg') $('imageFile').click();
   else if (act === 'addTxtImg') openTextImageDialog();
   else if (act === 'editTextImg') openTextImageDialog(c);
@@ -943,6 +970,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    paper.appendChild(el);
   }
   gridBg.hidden = !$('gridView').checked;
+  drawBorders();
   updateContextPopup();
  }
 
@@ -1002,6 +1030,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   el.style.top = (c.y + (parent ? parent.y : 0)) * mm + 'px';
   el.style.width = c.w * mm + 'px';
   el.style.height = c.h * mm + 'px';
+  drawBorders();
  }
 
  function cancelDrag() {
@@ -1198,8 +1227,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  $('imageFile').onchange = e => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
-  const parent = selectedCell();
-  if (!parent || parent.kind !== 'parent') {
+  const parent = targetParent();
+  if (!parent) {
    alert('画像を配置する親マスを選択してから画像挿入してください。');
    e.target.value = '';
    return;
@@ -1223,9 +1252,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  };
 
  $('addTextImage').onclick = () => {
-  const current = selectedCell();
-  if (current && current.type === 'textImage') { openTextImageDialog(current); return; }
-  if (!current || current.kind !== 'parent') {
+  if (!targetParent()) {
    alert('文字画像を配置する親マスを選択してから挿入してください。');
    return;
   }
@@ -1255,8 +1282,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    }
    selected = textImageEditId;
   } else {
-   const parent = selectedCell();
-   if (!parent || parent.kind !== 'parent') { alert('配置先の親マスを選択してください。'); return; }
+   const parent = targetParent();
+   if (!parent) { alert('配置先の親マスを選択してください。'); return; }
    const spot = findEmptySpotInParent(parent, Math.max(30, imageW / mm), Math.max(15, imageH / mm));
    const c = {
     id: nextId++, kind: 'image', type: 'textImage', parentId: parent.id,
@@ -1308,8 +1335,11 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    paper.style.width = pw * mm + 'px';
    paper.style.height = ph * mm + 'px';
   }
-  window.print();
-  setTimeout(() => {
+  let restored = false;
+  const restore = () => {
+   if (restored) return;
+   restored = true;
+   window.removeEventListener('afterprint', restore);
    paper.style.transform = ''; paper.style.width = ''; paper.style.height = '';
    selected = prevSelected;
    render();
@@ -1318,7 +1348,16 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
     if (p) { focusParentCell(p); return; }
    }
    fitStage();
-  }, 500);
+  };
+  window.addEventListener('afterprint', restore);
+  setTimeout(restore, 15000); /* afterprintが来ない環境の保険 */
+  try {
+   if (typeof window.print !== 'function') throw new Error('print機能なし');
+   window.print();
+  } catch (err) {
+   showError('印刷画面を開けませんでした（' + (err && err.message ? err.message : err) + '）。Chrome / Safari で直接開き直してみてください。');
+   restore();
+  }
  };
 
  stageWrap.addEventListener('scroll', positionPopup, { passive: true });
