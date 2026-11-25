@@ -37,11 +37,11 @@ body {
 
 /* 上部ヘッダー */
 header {
-  height: 46px;
-  min-height: 46px;
+  height: calc(46px + env(safe-area-inset-top, 0px));
+  min-height: calc(46px + env(safe-area-inset-top, 0px));
   background: #18181b;
   color: #fff;
-  padding: 6px 10px;
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 10px 6px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -122,7 +122,7 @@ select, input[type=number], input[type=text] {
 }
 #errorBanner {
   position: fixed;
-  left: 8px; right: 8px; bottom: 62px;
+  left: 8px; right: 8px; bottom: calc(62px + env(safe-area-inset-bottom, 0px));
   z-index: 2000;
   background: #b3261e;
   color: #fff;
@@ -133,7 +133,7 @@ select, input[type=number], input[type=text] {
   word-break: break-all;
 }
 #errorBanner[hidden] { display: none; }
-#updateBanner { position: fixed; left: 8px; right: 8px; top: 54px; z-index: 2000; background: #1f6feb; color: #fff; font-size: 13px; font-weight: 700; text-align: center; padding: 10px; border-radius: 8px; }
+#updateBanner { position: fixed; left: 8px; right: 8px; top: calc(54px + env(safe-area-inset-top, 0px)); z-index: 2000; background: #1f6feb; color: #fff; font-size: 13px; font-weight: 700; text-align: center; padding: 10px; border-radius: 8px; }
 #updateBanner[hidden] { display: none; }
 
 /* 用紙ヘッダー */
@@ -265,14 +265,14 @@ select, input[type=number], input[type=text] {
 
 /* 下部固定アクションバー */
 .bottom-bar {
-  height: 54px;
-  min-height: 54px;
+  height: calc(54px + env(safe-area-inset-bottom, 0px));
+  min-height: calc(54px + env(safe-area-inset-bottom, 0px));
   background: #18181b;
   border-top: 1px solid #333;
   display: flex;
   align-items: center;
   justify-content: space-around;
-  padding: 0 6px;
+  padding: 0 6px env(safe-area-inset-bottom, 0px);
   gap: 5px;
   flex-shrink: 0;
   z-index: 60;
@@ -522,6 +522,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
     <div class="field"><label><input id="gridToggle" type="checkbox" checked> グリッド吸着（5mm）</label></div>
     <div class="field"><label><input id="gridView" type="checkbox"> 補助線表示</label></div>
     <div class="field"><label><input id="fitPrint" type="checkbox" checked> 1枚に収める</label></div>
+    <div class="field"><label><input id="debugToggle" type="checkbox"> 診断表示（不具合調査用）</label></div>
+    <div class="field"><button type="button" id="forceUpdate">最新版に更新（保存データを消して再読み込み）</button></div>
     <small class="help" id="status">準備完了。親マスを追加し、必要な子マスを配置してください。</small>
   </div>
 </div>
@@ -908,8 +910,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const rect = el.getBoundingClientRect();
   const popRect = popup.getBoundingClientRect();
   const margin = 8;
-  const topLimit = 54;
-  const bottomLimit = window.innerHeight - 64;
+  const topLimit = (document.querySelector('header').offsetHeight || 46) + 8;
+  const bottomLimit = window.innerHeight - ((document.querySelector('.bottom-bar').offsetHeight || 54) + 10);
 
   let left = rect.left + rect.width / 2 - popRect.width / 2;
   left = Math.max(margin, Math.min(window.innerWidth - popRect.width - margin, left));
@@ -1152,6 +1154,25 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  }
 
  /* 子マス・画像：押したらすぐ選択してドラッグ開始 */
+ function markSelected(id) {
+  paper.querySelectorAll('.cell.selected').forEach(el => {
+   el.classList.remove('selected');
+   el.querySelectorAll('.handle').forEach(h => h.remove());
+  });
+  const c = cells.find(x => x.id === id);
+  const el = paper.querySelector(`.cell[data-id="${id}"]`);
+  if (!c || !el) return;
+  el.classList.add('selected');
+  if (c.kind !== 'parent' || c.free) {
+   ['nw', 'ne', 'sw', 'se'].forEach(pos => {
+    const h = document.createElement('i');
+    h.className = 'handle ' + pos;
+    h.dataset.handle = pos;
+    el.appendChild(h);
+   });
+  }
+ }
+
  function pointerDown(e) {
   if (pointers.size >= 2) return;
   const id = +e.currentTarget.dataset.id, c = cells.find(c => c.id === id);
@@ -1166,7 +1187,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    parent: c.parentId ? cells.find(p => p.id === c.parentId) : null
   };
   popup.hidden = true;
-  if (changed) { render(); syncPanel(); }
+  if (changed) { markSelected(id); syncPanel(); }
   e.preventDefault();
   e.stopPropagation();
  }
@@ -1225,6 +1246,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 
  /* 用紙エリアの指の動きを一括で見る（キャプチャ段階） */
  stageWrap.addEventListener('pointerdown', e => {
+  if (e.isPrimary) { pointers.clear(); pinch = null; pan = null; drag = null; }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size === 2) { startPinch(); return; }
   if (pointers.size > 2) return;
@@ -1276,6 +1298,56 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  window.addEventListener('pointerup', onPointerEnd);
  window.addEventListener('pointercancel', onPointerEnd);
  window.addEventListener('blur', () => { pointers.clear(); pinch = null; pan = null; cancelDrag(); });
+
+ /* キーボードや各種バーの出し入れで画面位置がズレたら元に戻す */
+ const healViewport = () => { if (window.scrollX || window.scrollY) window.scrollTo(0, 0); };
+ window.addEventListener('scroll', healViewport, { passive: true });
+ document.addEventListener('focusout', () => setTimeout(healViewport, 150));
+ if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', healViewport);
+  window.visualViewport.addEventListener('scroll', healViewport);
+ }
+
+ /* 診断表示：URL末尾に #debug を付けて開くと、左下に状態が出る */
+ const dbgEl = document.createElement('div');
+ dbgEl.style.cssText = 'position:fixed;left:4px;bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:3000;background:rgba(0,0,0,.82);color:#7CFC7C;font:10px/1.35 monospace;padding:4px 6px;border-radius:6px;pointer-events:none;white-space:pre;max-width:96vw;overflow:hidden';
+ dbgEl.hidden = true;
+ document.body.appendChild(dbgEl);
+ let dbgLast = '（まだタップなし）';
+ const dsc = el => !el ? 'null' : el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/).join('.') : '');
+ function dbgRender() {
+  const vv = window.visualViewport;
+  dbgEl.textContent =
+   'pointers=' + pointers.size + ' drag=' + (drag ? 'ON' : '-') + ' pinch=' + (pinch ? 'ON' : '-') + ' pan=' + (pan ? 'ON' : '-') + '\n' +
+   'selected=' + selected + ' scale=' + (+currentScale).toFixed(2) + '\n' +
+   'inner=' + window.innerWidth + 'x' + window.innerHeight + ' scroll=' + window.scrollX + ',' + window.scrollY + '\n' +
+   (vv ? 'vv scale=' + vv.scale.toFixed(2) + ' off=' + Math.round(vv.offsetLeft) + ',' + Math.round(vv.offsetTop) + ' size=' + Math.round(vv.width) + 'x' + Math.round(vv.height) : 'vv なし') + '\n' +
+   dbgLast;
+ }
+ window.addEventListener('pointerdown', e => {
+  if (dbgEl.hidden) return;
+  const stack = (document.elementsFromPoint ? document.elementsFromPoint(e.clientX, e.clientY) : []).slice(0, 3).map(dsc).join(' > ');
+  dbgLast = 'tap(' + Math.round(e.clientX) + ',' + Math.round(e.clientY) + ') 当たり: ' + dsc(e.target) + '\n重なり順: ' + stack;
+  dbgRender();
+ }, true);
+ const dbgToggle = () => { dbgEl.hidden = !(/debug/.test(location.hash) || $('debugToggle').checked); if (!dbgEl.hidden) dbgRender(); };
+ $('debugToggle').onchange = dbgToggle;
+ $('forceUpdate').onclick = async () => {
+  try {
+   if ('serviceWorker' in navigator) {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map(r => r.unregister()));
+   }
+   if (window.caches) {
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+   }
+  } catch (err) { /* 失敗しても再読み込みする */ }
+  location.reload();
+ };
+ window.addEventListener('hashchange', dbgToggle);
+ setInterval(() => { if (!dbgEl.hidden) dbgRender(); }, 500);
+ dbgToggle();
  ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
 
  function rotateSelectedImage(delta) {

@@ -5,13 +5,15 @@
  * - index.html と同じフォルダに置くこと
  * - この sw.js 自体を書き換えた時は、下の CACHE 名の数字を上げる
  */
-const CACHE = 'indicator-sim-v1';
+const CACHE = 'indicator-sim-v2';
 const CORE = ['./', './index.html'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE)
-      .then(cache => cache.addAll(CORE))
+      .then(cache => Promise.all(CORE.map(u =>
+        fetch(new Request(u, { cache: 'reload' })).then(res => { if (res && res.ok) return cache.put(u, res); })
+      )))
       .then(() => self.skipWaiting())
   );
 });
@@ -39,7 +41,7 @@ self.addEventListener('fetch', event => {
     const cached = await cache.match(req, { ignoreSearch: true });
 
     /* 裏で最新版を取得して保存（電波がなければ何もしない） */
-    const refresh = fetch(req).then(async res => {
+    const refresh = fetch(new Request(req.url, { cache: 'no-cache' })).then(async res => {
       if (res && res.ok) {
         if (cached) {
           const [a, b] = await Promise.all([cached.clone().text(), res.clone().text()]);
