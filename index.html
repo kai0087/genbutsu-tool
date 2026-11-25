@@ -294,10 +294,11 @@ select, input[type=number], input[type=text] {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  padding-bottom: var(--kb, 0px); /* キーボードの高さぶん持ち上げる */
 }
 .sheet-backdrop.center-dialog {
   align-items: center;
-  padding: 15px;
+  padding: 15px 15px calc(15px + var(--kb, 0px));
 }
 .sheet-backdrop[hidden] { display: none; }
 .bottom-sheet {
@@ -307,7 +308,7 @@ select, input[type=number], input[type=text] {
   color: #111;
   border-radius: 16px 16px 0 0;
   padding: 16px 18px 24px;
-  max-height: 82dvh;
+  max-height: min(82dvh, calc(var(--vvh, 100vh) - 24px)); /* キーボードを除いた見えてる高さ以内 */
   overflow-y: auto;
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.35);
 }
@@ -1300,13 +1301,35 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  window.addEventListener('blur', () => { pointers.clear(); pinch = null; pan = null; cancelDrag(); });
 
  /* キーボードや各種バーの出し入れで画面位置がズレたら元に戻す */
- const healViewport = () => { if (window.scrollX || window.scrollY) window.scrollTo(0, 0); };
+ const isEditing = () => { const a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName); };
+ const healViewport = () => { if (isEditing()) return; if (window.scrollX || window.scrollY) window.scrollTo(0, 0); };
  window.addEventListener('scroll', healViewport, { passive: true });
  document.addEventListener('focusout', () => setTimeout(healViewport, 150));
  if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', healViewport);
   window.visualViewport.addEventListener('scroll', healViewport);
  }
+
+ /* キーボードの高さ(--kb)と、見えてる高さ(--vvh)を測って、編集画面に伝える */
+ const rootEl = document.documentElement;
+ function updateKeyboard() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const raw = Math.round(window.innerHeight - vv.height - vv.offsetTop);
+  rootEl.style.setProperty('--kb', (raw > 80 ? raw : 0) + 'px');
+  rootEl.style.setProperty('--vvh', Math.round(vv.height) + 'px');
+ }
+ if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', updateKeyboard);
+  window.visualViewport.addEventListener('scroll', updateKeyboard);
+  updateKeyboard();
+ }
+ /* 入力欄をタップしたら、キーボードが出きった頃に、その欄が見える位置までスクロール */
+ document.addEventListener('focusin', e => {
+  const t = e.target;
+  if (!t.closest || !t.closest('.bottom-sheet') || !/^(INPUT|TEXTAREA)$/.test(t.tagName)) return;
+  setTimeout(() => { try { t.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (err) {} }, 350);
+ });
 
  /* 診断表示：URL末尾に #debug を付けて開くと、左下に状態が出る */
  const dbgEl = document.createElement('div');
