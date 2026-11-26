@@ -189,12 +189,12 @@ select, input[type=number], input[type=text] {
 }
 .border-layer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 44; }
 .cell.parent { background: #fff; z-index: 1 !important; }
-.cell.child { z-index: 20 !important; }
-.cell.image-object { z-index: 30 !important; }
+.cell.child { z-index: 30 !important; }
+.cell.image-object { z-index: 20 !important; }
 .cell.text-image { z-index: 40 !important; }
 .cell.parent.selected { z-index: 1 !important; }
-.cell.child.selected { z-index: 25 !important; }
-.cell.image-object.selected { z-index: 35 !important; }
+.cell.child.selected { z-index: 35 !important; }
+.cell.image-object.selected { z-index: 25 !important; }
 .cell.text-image.selected { z-index: 45 !important; }
 
 .cell-content {
@@ -409,17 +409,17 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 
 <!-- 下部固定ツールバー -->
 <nav class="bottom-bar">
-  <button type="button" class="primary" id="addParent">＋ 親マス</button>
+  <button type="button" class="primary" id="addParent">＋ 親</button>
   <button type="button" id="addFree">＋ フリーマス</button>
   <button type="button" id="colorSetting">カラー設定</button>
   <input id="imageFile" type="file" accept="image/*" hidden>
 </nav>
 
-<!-- 親マス構成選択 -->
+<!-- 親構成選択 -->
 <div id="parentFormatDialog" class="sheet-backdrop center-dialog" hidden>
   <div class="bottom-sheet">
     <div class="sheet-head">
-      <h3>親マスの部品構成</h3>
+      <h3>親の部品構成</h3>
       <button type="button" class="sheet-close" data-close="parentFormatDialog">閉じる</button>
     </div>
     <div class="field">
@@ -486,6 +486,9 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
       <div class="field"><label for="h">高さ (mm)</label><input id="h" type="number" min="5"></div>
     </div>
     <div class="field" id="textFieldWrap"><label for="cellText">表示文字</label><input id="cellText" type="text" value=""></div>
+    <div class="field" id="qtyFieldWrap"><label for="qty">数量（x 1 〜 x 5）</label>
+      <select id="qty"><option value="0">なし</option><option value="1">x 1</option><option value="2">x 2</option><option value="3">x 3</option><option value="4">x 4</option><option value="5">x 5</option></select>
+    </div>
     <div class="row">
       <div class="field"><label for="bg">背景色</label><input id="bg" type="color" value="#ffffff"></div>
       <div class="field"><label for="textColor">文字色</label><input id="textColor" type="color" value="#111111"></div>
@@ -517,7 +520,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
       </div>
       <div class="field">
         <label for="orientation">向き</label>
-        <select id="orientation"><option value="landscape" selected>横</option><option value="portrait">縦</option></select>
+        <select id="orientation"><option value="portrait" selected>縦</option><option value="landscape">横</option></select>
       </div>
     </div>
     <div class="field"><label><input id="gridToggle" type="checkbox" checked> グリッド吸着（5mm）</label></div>
@@ -525,7 +528,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
     <div class="field"><label><input id="fitPrint" type="checkbox" checked> 1枚に収める</label></div>
     <div class="field"><label><input id="debugToggle" type="checkbox"> 診断表示（不具合調査用）</label></div>
     <div class="field"><button type="button" id="forceUpdate">最新版に更新（保存データを消して再読み込み）</button></div>
-    <small class="help" id="status">準備完了。親マスを追加し、必要な子マスを配置してください。</small>
+    <small class="help" id="status">準備完了。親を追加し、必要な子を配置してください。</small>
   </div>
 </div>
 
@@ -545,12 +548,12 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  const mm = 3.78;
  const sizes = { A4: [210, 297], B5: [182, 257] };
  let cells = [], selected = null, nextId = 1, drag = null, textImageEditId = null, currentScale = 1, focusedParentId = null, cellTouchedAt = 0;
- const fields = ['w', 'h', 'bg', 'fontSize', 'lockRatio', 'cellText', 'textColor'];
+ const fields = ['w', 'h', 'bg', 'fontSize', 'lockRatio', 'cellText', 'textColor', 'qty'];
  const get = id => $(id).value;
  const set = (id, v) => $(id).value = v;
  const selectedCell = () => cells.find(c => c.id === selected);
 
- /* 操作対象の親マス：親マス選択中ならそれ自身、子マス・画像選択中ならその持ち主の親 */
+ /* 操作対象の親：親選択中ならそれ自身、子・画像選択中ならその持ち主の親 */
  const targetParent = () => {
   const c = selectedCell();
   if (!c) return null;
@@ -751,7 +754,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const c = {
    id: nextId++, kind, parentId,
    x: 5, y: 5, w: 20, h: 15,
-   text: kind === 'parent' ? '親マス' : '子マス',
+   text: kind === 'parent' ? '親' : '子',
    type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: kind === 'child' ? 28 : 20
   };
   if (kind === 'parent') {
@@ -793,7 +796,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   specs.forEach(spec => cells.push({
    id: nextId++, kind: 'child', parentId: parent.id,
    x: spec.x, y: 0, w: spec.w, h: childH,
-   text: '子マス', type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: 28
+   text: '子', type: 'text', bg: '#ffffff', textColor: '#111111', fontSize: 28
   }));
   selected = parent.id;
   render();
@@ -816,7 +819,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   document.querySelectorAll('.color-opt').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.color === paperColorKey)));
  }
 
- /* ---- フリーマス：用紙のどこにでも置ける・大きさも自由な枠。中に子マス・画像・文字画像を自由に配置 ---- */
+ /* ---- フリーマス：用紙のどこにでも置ける・大きさも自由な枠。中に子・画像・文字画像を自由に配置 ---- */
  function addFreeCell() {
   const [pw, ph] = dims();
   const n = cells.filter(c => c.free).length;
@@ -868,9 +871,9 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   let html = '';
   if (c.kind === 'parent') {
    html = `
-    <span class="badge">${c.free ? 'フリーマス' : '親マス'}</span>
+    <span class="badge">${c.free ? 'フリーマス' : '親'}</span>
     ${c.free ? '<button type="button" data-act="zoom">ズーム</button>' : ''}
-    <button type="button" class="primary" data-act="addChild">＋子マス</button>
+    <button type="button" class="primary" data-act="addChild">＋子</button>
     <button type="button" data-act="addImg">＋画像</button>
     <button type="button" data-act="addTxtImg">＋文字画像</button>
     <button type="button" data-act="edit">編集</button>
@@ -879,8 +882,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    `;
   } else if (c.kind === 'child') {
    html = `
-    <span class="badge">子マス</span>
-    <button type="button" data-act="toParent">↑親マス</button>
+    <span class="badge">子</span>
+    <button type="button" data-act="toParent">↑親</button>
     <button type="button" class="primary" data-act="edit">文字・サイズ編集</button>
     <button type="button" data-act="dup">複製</button>
     <button type="button" class="danger" data-act="del">削除</button>
@@ -889,7 +892,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    const isTextImg = c.type === 'textImage';
    html = `
     <span class="badge">${isTextImg ? '文字画像' : '画像'}</span>
-    <button type="button" data-act="toParent">↑親マス</button>
+    <button type="button" data-act="toParent">↑親</button>
     ${isTextImg
       ? `<button type="button" class="primary" data-act="editTextImg">文言・色編集</button>`
       : `<button type="button" data-act="rotL">↺90°</button><button type="button" data-act="rotR">↻90°</button>`}
@@ -987,7 +990,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 
  function render() {
   paper.querySelectorAll('.cell').forEach(e => e.remove());
-  const layer = c => c.kind === 'parent' ? (c.free ? 10 : 1) : c.kind === 'child' ? 20 : (c.type === 'textImage' ? 40 : 30);
+  const layer = c => c.kind === 'parent' ? (c.free ? 10 : 1) : c.kind === 'child' ? 30 : (c.type === 'textImage' ? 40 : 20);
   const sorted = [...cells].sort((a, b) => layer(a) - layer(b));
 
   for (const c of sorted) {
@@ -1031,7 +1034,9 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
     content.style.position = 'relative';
     content.appendChild(img);
    } else {
-    content.textContent = c.text || (c.kind === 'child' ? '子マス' : (c.free ? '' : '親マス'));
+    content.textContent = (c.kind === 'child' && c.qty)
+     ? (c.text ? c.text + ' ' : '') + 'x ' + c.qty
+     : (c.text || (c.kind === 'child' ? '子' : (c.free ? '' : '親')));
    }
    el.appendChild(content);
 
@@ -1060,11 +1065,13 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   const isFree = !!c.free;
   $('imageRotateControls').hidden = !(isImg && !!c.contentData);
   $('textFieldWrap').hidden = isImg || isFree;
+  $('qtyFieldWrap').hidden = c.kind !== 'child';
+  $('qty').value = String(c.qty || 0);
   $('fontSizeFieldWrap').hidden = isImg || isFree;
   $('w').readOnly = isParent && !isFree;
   $('h').readOnly = isParent && !isFree;
-  $('editSheetTitle').textContent = (isFree ? 'フリーマス' : isParent ? '親マス' : c.kind === 'child' ? '子マス' : (c.type === 'textImage' ? '文字画像' : '画像')) + 'の編集';
-  set('kindLabel', isFree ? 'フリーマス（自由配置）' : isParent ? '親マス（定位置グリッド・' + (c.format === 'assembly' ? '部品＋ボルト・ナット' : '部品単品') + '）' : c.kind === 'child' ? '子マス' : c.type === 'textImage' ? '文字画像' : '画像');
+  $('editSheetTitle').textContent = (isFree ? 'フリーマス' : isParent ? '親' : c.kind === 'child' ? '子' : (c.type === 'textImage' ? '文字画像' : '画像')) + 'の編集';
+  set('kindLabel', isFree ? 'フリーマス（自由配置）' : isParent ? '親（定位置グリッド・' + (c.format === 'assembly' ? '部品＋ボルト・ナット' : '部品単品') + '）' : c.kind === 'child' ? '子' : c.type === 'textImage' ? '文字画像' : '画像');
   set('w', Math.round(c.w));
   set('h', Math.round(c.h));
   set('bg', c.bg === 'transparent' ? '#ffffff' : c.bg);
@@ -1084,6 +1091,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   if (c.bg !== 'transparent' || (e && e.target && e.target.id === 'bg')) c.bg = get('bg');
   c.fontSize = +get('fontSize') || 16;
   c.text = get('cellText');
+  if (c.kind === 'child') c.qty = +get('qty') || 0;
   c.textColor = get('textColor');
   if (c.type === 'textImage') c.contentData = makeTextImage(c.text, c.textColor, c.fontSize, c.bg === 'transparent', c.textImageBg || '#ffffff');
   if (c.parentId) {
@@ -1154,7 +1162,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   if (c.kind === 'parent' && (!was || focusedParentId !== id)) focusParentCell(c);
  }
 
- /* 子マス・画像：押したらすぐ選択してドラッグ開始 */
+ /* 子・画像：押したらすぐ選択してドラッグ開始 */
  function markSelected(id) {
   paper.querySelectorAll('.cell.selected').forEach(el => {
    el.classList.remove('selected');
@@ -1177,7 +1185,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  function pointerDown(e) {
   if (pointers.size >= 2) return;
   const id = +e.currentTarget.dataset.id, c = cells.find(c => c.id === id);
-  if (!c || (c.kind === 'parent' && !c.free)) return; /* 親マスは「タップ」で選択 */
+  if (!c || (c.kind === 'parent' && !c.free)) return; /* 親は「タップ」で選択 */
   const changed = selected !== id;
   selected = id;
   drag = {
@@ -1255,7 +1263,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   if (t.closest && t.closest('input,select,button,label')) return;
   const cellEl = t.closest ? t.closest('.cell') : null;
   const c = cellEl ? cells.find(x => x.id === +cellEl.dataset.id) : null;
-  if (c && (c.kind !== 'parent' || c.free)) return; /* 子マス・画像・フリーマスはドラッグ操作に任せる */
+  if (c && (c.kind !== 'parent' || c.free)) return; /* 子・画像・フリーマスはドラッグ操作に任せる */
   const blank = !c && (t === paper || t === gridBg || t === stageWrap || t === stageSizer || t === stage);
   pan = { pid: e.pointerId, x0: e.clientX, y0: e.clientY, l0: stageWrap.scrollLeft, t0: stageWrap.scrollTop, moved: false, tapId: c ? c.id : null, blank };
  }, true);
@@ -1404,6 +1412,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  };
 
  fields.forEach(id => $(id).addEventListener('input', updateFromPanel));
+ $('qty').addEventListener('change', updateFromPanel);
 
  $('addFree').onclick = () => { addFreeCell(); };
  $('colorSetting').onclick = () => { applyPaperColor(); $('colorDialog').hidden = false; };
@@ -1422,13 +1431,13 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   if (!file) return;
   const parent = targetParent();
   if (!parent) {
-   alert('画像を配置する親マスを選択してから画像挿入してください。');
+   alert('画像を配置する親を選択してから画像挿入してください。');
    e.target.value = '';
    return;
   }
   const reader = new FileReader();
   reader.onload = () => {
-   /* 幅95×高さ70mm。親マスより大きい時は親マスに収める。下枠を0点として下に揃え、左右は中央 */
+   /* 幅95×高さ70mm。親より大きい時は親に収める。下枠を0点として下に揃え、左右は中央 */
    const imgW = Math.min(95, parent.w);
    const imgH = Math.min(70, parent.h);
    const c = {
@@ -1473,7 +1482,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    selected = textImageEditId;
   } else {
    const parent = targetParent();
-   if (!parent) { alert('配置先の親マスを選択してください。'); return; }
+   if (!parent) { alert('配置先の親を選択してください。'); return; }
    const spot = findEmptySpotInParent(parent, Math.max(30, imageW / mm), Math.max(15, imageH / mm));
    const c = {
     id: nextId++, kind: 'image', type: 'textImage', parentId: parent.id,
