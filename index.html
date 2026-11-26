@@ -187,7 +187,12 @@ select, input[type=number], input[type=text] {
   outline: 2.5px solid var(--accent);
   outline-offset: 1px;
 }
-.border-layer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 44; }
+.border-layer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+/* 枠線の重なり順：各マスの直上＝次の種類のマスの直下 */
+#borderLayer-parent { z-index: 2; }   /* 親(1)  と 画像(20) の間 */
+#borderLayer-free   { z-index: 11; }  /* フリー(10) と 画像(20) の間 */
+#borderLayer-image  { z-index: 26; }  /* 画像(20/選択25) と 子(30) の間 */
+#borderLayer-child  { z-index: 36; }  /* 子(30/選択35) と 文字画像(40) の間 */
 .cell.parent { background: #fff; z-index: 1 !important; }
 .cell.child { z-index: 30 !important; }
 .cell.image-object { z-index: 20 !important; }
@@ -395,7 +400,10 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
           <label>作成日 <input id="createdDate" type="date"></label>
         </div>
         <div class="grid-bg" id="gridBg" hidden></div>
-        <svg class="border-layer" id="borderLayer" aria-hidden="true"><path id="borderPath" fill="none" stroke="#222" stroke-width="1.5" stroke-linejoin="miter"/></svg>
+        <svg class="border-layer" id="borderLayer-parent" aria-hidden="true"><path id="borderPath-parent" fill="none" stroke="#222" stroke-width="1.5" stroke-linejoin="miter"/></svg>
+        <svg class="border-layer" id="borderLayer-free" aria-hidden="true"><path id="borderPath-free" fill="none" stroke="#222" stroke-width="1.5" stroke-linejoin="miter"/></svg>
+        <svg class="border-layer" id="borderLayer-image" aria-hidden="true"><path id="borderPath-image" fill="none" stroke="#222" stroke-width="1.5" stroke-linejoin="miter"/></svg>
+        <svg class="border-layer" id="borderLayer-child" aria-hidden="true"><path id="borderPath-child" fill="none" stroke="#222" stroke-width="1.5" stroke-linejoin="miter"/></svg>
       </div>
     </div>
   </div>
@@ -563,16 +571,19 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 
  /* 全マスの枠線を1本のパスにまとめて描く（重なっても・隣り合っても1本線になる） */
  function drawBorders() {
-  let d = '';
+  const paths = { parent: '', free: '', image: '', child: '' };
   for (const c of cells) {
    if (c.type === 'textImage') continue;
+   const key = c.kind === 'parent' ? (c.free ? 'free' : 'parent') : c.kind === 'child' ? 'child' : 'image';
    const p = c.parentId ? cells.find(q => q.id === c.parentId) : null;
    const x = (c.x + (p ? p.x : 0)) * mm, y = (c.y + (p ? p.y : 0)) * mm;
    const w = c.w * mm, h = c.h * mm;
-   d += 'M' + x + ' ' + y + 'h' + w + 'v' + h + 'h' + (-w) + 'z';
+   paths[key] += 'M' + x + ' ' + y + 'h' + w + 'v' + h + 'h' + (-w) + 'z';
   }
-  const path = document.getElementById('borderPath');
-  if (path) path.setAttribute('d', d);
+  for (const k in paths) {
+   const el = document.getElementById('borderPath-' + k);
+   if (el) el.setAttribute('d', paths[k]);
+  }
  }
 
  function dims() {
@@ -1309,6 +1320,10 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  window.addEventListener('blur', () => { pointers.clear(); pinch = null; pan = null; cancelDrag(); });
 
  /* キーボードや各種バーの出し入れで画面位置がズレたら元に戻す */
+ const blurActive = () => { const a = document.activeElement; if (a && a !== document.body && a.blur) a.blur(); };
+ let lastEditAt = 0;
+ document.addEventListener('focusin', () => { lastEditAt = Date.now(); });
+ document.addEventListener('focusout', () => { lastEditAt = Date.now(); });
  const isEditing = () => { const a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName); };
  const healViewport = () => { if (isEditing()) return; if (window.scrollX || window.scrollY) window.scrollTo(0, 0); };
  window.addEventListener('scroll', healViewport, { passive: true });
@@ -1400,7 +1415,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
   $('textImageTitle').textContent = c ? '文字画像の編集' : '文字画像の作成';
   $('confirmTextImage').textContent = c ? '変更を反映' : '挿入';
   $('textImageDialog').hidden = false;
-  $('textImageValue').focus();
+  if (!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)) $('textImageValue').focus(); /* スマホは自動フォーカスしない */
  }
 
  $('addParent').onclick = () => { $('parentFormatDialog').hidden = false; };
@@ -1458,7 +1473,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  };
 
  $('textImageClearBg').onchange = () => { $('textImageBgField').hidden = $('textImageClearBg').checked; };
- $('cancelTextImage').onclick = () => { $('textImageDialog').hidden = true; textImageEditId = null; };
+ $('cancelTextImage').onclick = () => { blurActive(); $('textImageDialog').hidden = true; textImageEditId = null; };
  $('confirmTextImage').onclick = () => {
   const value = get('textImageValue').trim();
   if (!value) { alert('文字を入力してください。'); return; }
@@ -1494,6 +1509,7 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
    selected = c.id;
   }
   textImageEditId = null;
+  blurActive();
   $('textImageDialog').hidden = true;
   render();
   syncPanel();
@@ -1502,10 +1518,10 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
  $('resetZoom').onclick = () => { fitStage(); };
  $('openSettings').onclick = () => { $('settingsSheet').hidden = false; };
  document.querySelectorAll('.sheet-close').forEach(btn => {
-  btn.onclick = () => { $(btn.dataset.close).hidden = true; };
+  btn.onclick = () => { blurActive(); $(btn.dataset.close).hidden = true; };
  });
  document.querySelectorAll('.sheet-backdrop').forEach(bg => {
-  bg.addEventListener('click', e => { if (e.target === bg) bg.hidden = true; });
+  bg.addEventListener('click', e => { if (e.target === bg) { blurActive(); bg.hidden = true; } });
  });
 
  $('paperSize').onchange = paperSetup;
@@ -1561,6 +1577,8 @@ small.help { display: block; color: #555; font-size: 11px; line-height: 1.45; ma
 
  stageWrap.addEventListener('scroll', positionPopup, { passive: true });
  window.addEventListener('resize', () => {
+  /* キーボードの出し入れ・入力中・入力直後・編集画面表示中は、倍率をいじらない */
+  if (isEditing() || Date.now() - lastEditAt < 1000 || document.querySelector('.sheet-backdrop:not([hidden])')) return;
   if (focusedParentId) {
    const p = cells.find(x => x.id === focusedParentId);
    if (p) { focusParentCell(p); return; }
